@@ -83,8 +83,7 @@ fun ShopScreen(
                     .padding(16.dp)
             ) {
                 StatsDisplay(
-                    points = gameState.points,
-                    coins = gameState.coins
+                    points = gameState.points
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -107,7 +106,7 @@ fun ShopScreen(
                         SeedShopItem(
                             plantInfo = plantInfo,
                             owned = gameState.ownedSeeds[plantInfo.type] ?: 0,
-                            canAfford = gameState.coins >= plantInfo.basePrice,
+                            canAfford = gameState.points >= plantInfo.basePrice,
                             onBuy = {
                                 gameViewModel.buySeed(plantInfo.type)
                             }
@@ -133,7 +132,7 @@ fun ShopScreen(
                             description = "Mejora la salud de tu planta rápidamente",
                             price = GameState.FERTILIZER_COST,
                             owned = gameState.fertilizers,
-                            canAfford = gameState.coins >= GameState.FERTILIZER_COST,
+                            canAfford = gameState.points >= GameState.FERTILIZER_COST,
                             onBuy = { gameViewModel.buyFertilizer() }
                         )
                     }
@@ -145,7 +144,7 @@ fun ShopScreen(
                             description = "Elimina las plagas de tu planta",
                             price = GameState.PESTICIDE_COST,
                             owned = gameState.pesticides,
-                            canAfford = gameState.coins >= GameState.PESTICIDE_COST,
+                            canAfford = gameState.points >= GameState.PESTICIDE_COST,
                             onBuy = { gameViewModel.buyPesticide() }
                         )
                     }
@@ -253,32 +252,48 @@ fun SeedShopItem(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AccountBalance,
-                        contentDescription = "Precio",
-                        tint = SunYellow,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = if (plantInfo.basePrice == 0) "Gratis" else plantInfo.basePrice.toString(),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (canAfford) GreenPrimary else Color.Red
-                    )
-                }
-                
-                Button(
-                    onClick = onBuy,
-                    enabled = canAfford && plantInfo.basePrice > 0,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = GreenPrimary
-                    )
-                ) {
-                    Text("Comprar")
+                if (plantInfo.basePrice == 0) {
+                    // Semilla gratis (inicial)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = GreenLight.copy(alpha = 0.3f)
+                    ) {
+                        Text(
+                            text = "🎁 Inicial",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenPrimary,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Puntos",
+                            tint = SunYellow,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = plantInfo.basePrice.toString(),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (canAfford) GreenPrimary else Color.Red
+                        )
+                    }
+                    
+                    Button(
+                        onClick = onBuy,
+                        enabled = canAfford,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GreenPrimary
+                        )
+                    ) {
+                        Text("Comprar")
+                    }
                 }
             }
         }
@@ -378,8 +393,8 @@ fun ToolShopItem(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.AccountBalance,
-                        contentDescription = "Precio",
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Puntos",
                         tint = SunYellow,
                         modifier = Modifier.size(20.dp)
                     )

@@ -7,7 +7,6 @@ data class GameState(
     val user: User? = null,
     val currentPlant: Plant? = null,
     val points: Int = 0,
-    val coins: Int = 0,
     val unlockedPlants: List<PlantType> = listOf(
         PlantType.FRIJOL,
         PlantType.RABANO,
@@ -22,7 +21,8 @@ data class GameState(
     val pesticides: Int = 0,
     val totalPlantsHarvested: Int = 0,
     val totalPlantsDied: Int = 0,
-    val isFirstTime: Boolean = true
+    val isFirstTime: Boolean = true,
+    val lastNotifiedStage: PlantStage? = null // Para notificaciones de cambio de etapa
 ) {
     fun hasPlant(): Boolean = currentPlant != null && currentPlant.isDead().not()
     
@@ -32,15 +32,15 @@ data class GameState(
     
     fun canBuySeed(plantType: PlantType): Boolean {
         val plantInfo = PlantTypeData.getInfo(plantType)
-        return coins >= plantInfo.basePrice
+        return points >= plantInfo.basePrice
     }
     
     fun canBuyFertilizer(): Boolean {
-        return coins >= FERTILIZER_COST
+        return points >= FERTILIZER_COST
     }
     
     fun canBuyPesticide(): Boolean {
-        return coins >= PESTICIDE_COST
+        return points >= PESTICIDE_COST
     }
     
     companion object {

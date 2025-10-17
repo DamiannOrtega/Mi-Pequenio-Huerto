@@ -81,7 +81,7 @@ fun ActionButton(
         Text(
             text = label,
             fontSize = 12.sp,
-            color = if (enabled) MaterialTheme.colorScheme.onBackground else Color.Gray,
+            color = if (enabled) GreenDark else Color.Gray,
             fontWeight = FontWeight.Medium
         )
     }
@@ -204,7 +204,6 @@ fun GradientButton(
 @Composable
 fun StatsDisplay(
     points: Int,
-    coins: Int,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -214,52 +213,32 @@ fun StatsDisplay(
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
                 shape = RoundedCornerShape(12.dp)
             )
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Puntos
+        // Solo puntos
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.Star,
                 contentDescription = "Puntos",
                 tint = SunYellow,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(28.dp)
             )
             Text(
                 text = points.toString(),
-                fontSize = 18.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-        
-        Divider(
-            modifier = Modifier
-                .height(30.dp)
-                .width(1.dp),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-        )
-        
-        // Monedas
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.AccountBalance,
-                contentDescription = "Monedas",
-                tint = SunYellow,
-                modifier = Modifier.size(24.dp)
             )
             Text(
-                text = coins.toString(),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                text = "puntos",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
         }
     }

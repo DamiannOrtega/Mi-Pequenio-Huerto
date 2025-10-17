@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -209,9 +210,9 @@ fun PlantInfoScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 // Información de la planta
-                InfoCard(
-                    title = "Sobre ${plantInfo.name}",
-                    content = plantInfo.description,
+                PlantInfoCard(
+                    plantName = plantInfo.name,
+                    description = plantInfo.detailedDescription,
                     icon = Icons.Default.Info
                 )
                 
@@ -423,6 +424,108 @@ fun formatTimeAgo(timestamp: Long): String {
         hours > 0 -> "Hace ${hours}h"
         minutes > 0 -> "Hace ${minutes}m"
         else -> "Ahora mismo"
+    }
+}
+
+@Composable
+fun PlantInfoCard(
+    plantName: String,
+    description: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = GreenPrimary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+                Text(
+                    text = "Sobre $plantName",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GreenDark
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Parsear y mostrar el contenido con formato
+            val lines = description.split("\n")
+            lines.forEach { line ->
+                when {
+                    line.startsWith("**") && line.endsWith("**") -> {
+                        // Título principal
+                        Text(
+                            text = line.removeSurrounding("**"),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenPrimary,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+                    line.startsWith("•") -> {
+                        // Lista de características
+                        Row(
+                            modifier = Modifier.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "  ",
+                                fontSize = 16.sp
+                            )
+                            Text(
+                                text = line,
+                                fontSize = 16.sp,
+                                color = Color.DarkGray
+                            )
+                        }
+                    }
+                    line.startsWith("**") -> {
+                        // Subtítulo
+                        Text(
+                            text = line.removeSurrounding("**"),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenDark,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                    line.isNotBlank() -> {
+                        // Texto normal
+                        Text(
+                            text = line,
+                            fontSize = 16.sp,
+                            color = Color.DarkGray,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                    }
+                    else -> {
+                        // Línea vacía
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            }
+        }
     }
 }
 

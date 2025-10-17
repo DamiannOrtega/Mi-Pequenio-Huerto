@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.miprimerhuerto.data.model.*
 import com.example.miprimerhuerto.data.repository.GameRepository
+import com.example.miprimerhuerto.notifications.PlantNotificationWorker
+import com.example.miprimerhuerto.utils.DebugConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,14 +52,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (plant.isDead()) return
         
         val plantInfo = PlantTypeData.getInfo(plant.type)
-        val timeSinceLastWater = plant.getTimeSinceLastWater()
         
-        // Disminuir agua con el tiempo (basado en el consumo de la planta)
-        val hoursPassedSinceWater = timeSinceLastWater / (1000f * 60 * 60)
-        val waterDecrement = plantInfo.waterConsumptionRate * (hoursPassedSinceWater / 60) // Por minuto
+        // Calcular consumo de agua por segundo
+        // waterConsumptionRate es % por hora, lo dividimos entre 3600 segundos
+        val waterPerSecond = plantInfo.waterConsumptionRate / 3600f
         
-        var newWaterLevel = (plant.waterLevel - waterDecrement).coerceIn(0f, 100f)
+        var newWaterLevel = (plant.waterLevel - waterPerSecond).coerceIn(0f, 100f)
         var newHealth = plant.health
+        
+        DebugConfig.log("Agua: ${newWaterLevel.toInt()}% | Salud: ${newHealth.toInt()}% | Consumo/s: $waterPerSecond")
         
         // Si el agua está baja, disminuir la salud
         if (newWaterLevel < 25f) {
@@ -102,12 +105,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             stageStartedAt = if (newStage != plant.stage) System.currentTimeMillis() else plant.stageStartedAt
         )
         
-        if (newStage != plant.stage && newStage == PlantStage.COSECHABLE) {
-            emitEvent(UiEvent.PlantReadyToHarvest)
-        }
-        
-        if (plant.stage != PlantStage.MUERTA && newStage == PlantStage.MUERTA) {
-            emitEvent(UiEvent.PlantDied)
+        // Notificar cambios de etapa
+        if (newStage != plant.stage) {
+            // Enviar notificación inmediata cuando cambia de etapa
+            sendStageChangeNotification(plant.type, newStage)
+            
+            when (newStage) {
+                PlantStage.COSECHABLE -> emitEvent(UiEvent.PlantReadyToHarvest)
+                PlantStage.MUERTA -> emitEvent(UiEvent.PlantDied)
+                else -> emitEvent(UiEvent.StageChanged(plant.stage, newStage))
+            }
         }
         
         saveGameState(currentState.copy(currentPlant = updatedPlant))
@@ -153,14 +160,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             
             val newState = currentState.copy(
                 currentPlant = newPlant,
-                ownedSeeds = updatedSeeds
+                ownedSeeds = updatedSeeds,
+                lastNotifiedStage = null // Resetear para permitir notificaciones de esta nueva planta
             )
             saveGameState(newState)
             emitEvent(UiEvent.SeedPlanted(plantType))
         }
     }
     
-    fun waterPlant() {
+    fun waterPlant(amount: Float = 10f) {
         viewModelScope.launch {
             val currentState = _gameState.value
             val plant = currentState.currentPlant ?: return@launch
@@ -182,18 +190,27 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 saveGameState(newState)
                 emitEvent(UiEvent.Overwatered)
             } else {
-                // Riego normal
+                // Riego progresivo: incrementar por la cantidad especificada
+                val newWaterLevel = (plant.waterLevel + amount).coerceIn(0f, 100f)
+                val actualIncrement = newWaterLevel - plant.waterLevel
+                
                 val wateredPlant = plant.copy(
-                    waterLevel = 100f,
+                    waterLevel = newWaterLevel,
                     lastWatered = System.currentTimeMillis()
                 )
                 
+                // Solo dar puntos si realmente se incrementó el agua
+                val pointsToAdd = if (actualIncrement > 0) GameState.WATER_POINTS else 0
+                
                 val newState = currentState.copy(
                     currentPlant = wateredPlant,
-                    points = currentState.points + GameState.WATER_POINTS
+                    points = currentState.points + pointsToAdd
                 )
                 saveGameState(newState)
-                emitEvent(UiEvent.PlantWatered(GameState.WATER_POINTS))
+                
+                if (pointsToAdd > 0) {
+                    emitEvent(UiEvent.PlantWatered(pointsToAdd))
+                }
             }
         }
     }
@@ -248,16 +265,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             
             val plantInfo = PlantTypeData.getInfo(plant.type)
             val harvestPoints = plantInfo.harvestPoints
-            val harvestCoins = harvestPoints / 2
             
             val newState = currentState.copy(
                 currentPlant = null,
                 points = currentState.points + harvestPoints,
-                coins = currentState.coins + harvestCoins,
                 totalPlantsHarvested = currentState.totalPlantsHarvested + 1
             )
             saveGameState(newState)
-            emitEvent(UiEvent.PlantHarvested(harvestPoints, harvestCoins))
+            emitEvent(UiEvent.PlantHarvested(harvestPoints))
         }
     }
     
@@ -291,7 +306,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             
             val newState = currentState.copy(
                 ownedSeeds = updatedSeeds,
-                coins = currentState.coins - plantInfo.basePrice
+                points = currentState.points - plantInfo.basePrice
             )
             saveGameState(newState)
             emitEvent(UiEvent.SeedPurchased(plantType))
@@ -305,7 +320,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             
             val newState = currentState.copy(
                 fertilizers = currentState.fertilizers + 1,
-                coins = currentState.coins - GameState.FERTILIZER_COST
+                points = currentState.points - GameState.FERTILIZER_COST
             )
             saveGameState(newState)
             emitEvent(UiEvent.FertilizerPurchased)
@@ -319,7 +334,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             
             val newState = currentState.copy(
                 pesticides = currentState.pesticides + 1,
-                coins = currentState.coins - GameState.PESTICIDE_COST
+                points = currentState.points - GameState.PESTICIDE_COST
             )
             saveGameState(newState)
             emitEvent(UiEvent.PesticidePurchased)
@@ -331,11 +346,110 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         repository.saveGameState(newState)
     }
     
+    private fun sendStageChangeNotification(plantType: PlantType, newStage: PlantStage) {
+        try {
+            val plantInfo = PlantTypeData.getInfo(plantType)
+            val stageNames = mapOf(
+                PlantStage.GERMINACION to "Germinación",
+                PlantStage.PLANTULA to "Plántula",
+                PlantStage.JOVEN to "Joven",
+                PlantStage.MADURO to "Maduro",
+                PlantStage.COSECHABLE to "Cosechable",
+                PlantStage.FLORECIMIENTO to "Florecimiento"
+            )
+            
+            val title = when (newStage) {
+                PlantStage.COSECHABLE -> "🎉 ¡Lista para cosechar!"
+                PlantStage.FLORECIMIENTO -> "🌸 ¡Tu planta floreció!"
+                else -> "🌱 ¡Tu planta creció!"
+            }
+            
+            val message = "Tu ${plantInfo.name} está ahora en etapa: ${stageNames[newStage]}"
+            
+            DebugConfig.log("Enviando notificación inmediata de cambio de etapa: $title")
+            
+            // Enviar notificación directamente usando el Worker
+            PlantNotificationWorker.sendStageChangeNotification(
+                context = getApplication(),
+                title = title,
+                message = message
+            )
+        } catch (e: Exception) {
+            DebugConfig.log("Error enviando notificación de cambio de etapa: ${e.message}")
+        }
+    }
+    
+    
     private fun emitEvent(event: UiEvent) {
         viewModelScope.launch {
             _uiEvent.value = event
             delay(100) // Pequeño delay para asegurar que el evento se consuma
             _uiEvent.value = null
+        }
+    }
+    
+    // Métodos de debug (solo en modo DEBUG)
+    fun triggerDebugPest() {
+        if (!DebugConfig.DEBUG_MODE) return
+        
+        val currentState = _gameState.value
+        val plant = currentState.currentPlant ?: return
+        
+        val updatedPlant = plant.copy(hasPest = true)
+        val newState = currentState.copy(currentPlant = updatedPlant)
+        
+        viewModelScope.launch {
+            saveGameState(newState)
+            DebugConfig.log("🐛 DEBUG: Plaga simulada")
+        }
+    }
+    
+    fun triggerDebugLowWater() {
+        if (!DebugConfig.DEBUG_MODE) return
+        
+        val currentState = _gameState.value
+        val plant = currentState.currentPlant ?: return
+        
+        val updatedPlant = plant.copy(waterLevel = 20f) // Agua baja
+        val newState = currentState.copy(currentPlant = updatedPlant)
+        
+        viewModelScope.launch {
+            saveGameState(newState)
+            DebugConfig.log("💧 DEBUG: Agua baja simulada (20%)")
+        }
+    }
+    
+    fun triggerDebugStageChange() {
+        if (!DebugConfig.DEBUG_MODE) return
+        
+        val currentState = _gameState.value
+        val plant = currentState.currentPlant ?: return
+        
+        // Avanzar a la siguiente etapa
+        val currentStage = plant.stage
+        val nextStage = when (currentStage) {
+            PlantStage.SEMILLA -> PlantStage.GERMINACION
+            PlantStage.GERMINACION -> PlantStage.PLANTULA
+            PlantStage.PLANTULA -> PlantStage.JOVEN
+            PlantStage.JOVEN -> PlantStage.MADURO
+            PlantStage.MADURO -> if (PlantTypeData.getInfo(plant.type).isHarvestable) PlantStage.COSECHABLE else PlantStage.FLORECIMIENTO
+            PlantStage.COSECHABLE -> PlantStage.SEMILLA // Reiniciar
+            PlantStage.FLORECIMIENTO -> PlantStage.SEMILLA // Reiniciar
+            PlantStage.MUERTA -> PlantStage.SEMILLA // Reiniciar
+        }
+        
+        val updatedPlant = plant.copy(
+            stage = nextStage,
+            stageStartedAt = System.currentTimeMillis()
+        )
+        val newState = currentState.copy(currentPlant = updatedPlant)
+        
+        viewModelScope.launch {
+            saveGameState(newState)
+            DebugConfig.log("🌱 DEBUG: Etapa cambiada de $currentStage a $nextStage")
+            
+            // Enviar notificación de cambio de etapa
+            sendStageChangeNotification(plant.type, nextStage)
         }
     }
     
@@ -350,7 +464,7 @@ sealed class UiEvent {
     data class PlantWatered(val pointsEarned: Int) : UiEvent()
     data class FertilizerApplied(val pointsEarned: Int) : UiEvent()
     data class PestRemoved(val pointsEarned: Int) : UiEvent()
-    data class PlantHarvested(val pointsEarned: Int, val coinsEarned: Int) : UiEvent()
+    data class PlantHarvested(val pointsEarned: Int) : UiEvent()
     data object PlantRemoved : UiEvent()
     data class SeedPurchased(val plantType: PlantType) : UiEvent()
     data object FertilizerPurchased : UiEvent()
@@ -359,5 +473,6 @@ sealed class UiEvent {
     data object PlantReadyToHarvest : UiEvent()
     data object PlantDied : UiEvent()
     data object Overwatered : UiEvent()
+    data class StageChanged(val oldStage: PlantStage, val newStage: PlantStage) : UiEvent()
 }
 
