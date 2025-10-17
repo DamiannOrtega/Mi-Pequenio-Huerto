@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -50,6 +51,26 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation("androidx.compose.material:material-icons-extended:1.7.6")
+    
+    // Navigation
+    implementation(libs.androidx.navigation.compose)
+    
+    // DataStore
+    implementation(libs.androidx.datastore.preferences)
+    
+    // WorkManager for notifications
+    implementation(libs.androidx.work.runtime.ktx)
+    
+    // ViewModel
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    
+    // Permissions
+    implementation(libs.accompanist.permissions)
+    
+    // Serialization
+    implementation(libs.kotlinx.serialization.json)
+    
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
