@@ -3,7 +3,7 @@ package com.example.miprimerhuerto.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // Colores principales del tema del huerto
-val GreenPrimary = Color(0xFF4CAF50) // Verde vibrante para plantas
+val GreenPrimary = Color(0xFF19DA22) // Verde vibrante para plantas
 val GreenLight = Color(0xFF81C784) // Verde claro
 val GreenDark = Color(0xFF388E3C) // Verde oscuro
 

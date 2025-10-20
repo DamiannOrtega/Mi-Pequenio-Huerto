@@ -2,6 +2,7 @@ package com.example.miprimerhuerto.ui.screens
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
@@ -9,14 +10,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.miprimerhuerto.R
 import com.example.miprimerhuerto.ui.components.AnimatedLoadingBar
 import com.example.miprimerhuerto.ui.theme.*
 import com.example.miprimerhuerto.ui.viewmodel.GameViewModel
@@ -70,33 +76,30 @@ fun LoadingScreen(
             modifier = Modifier.padding(32.dp)
         ) {
             // Logo animado
-            Box(
+            Image(
+                painter = painterResource(id = R.drawable.logo_2),
+                contentDescription = "Logo del juego",
                 modifier = Modifier
-                    .size(200.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    // Dibujar logo del juego (un jardín simplificado)
-                    drawGameLogo(logoScale)
-                }
-            }
+                    .size(200.dp)
+                    .scale(logoScale)
+            )
             
             Spacer(modifier = Modifier.height(24.dp))
             
             // Título
-            Text(
+            /*Text(
                 text = "Mi Primer Huerto",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = GreenDark
-            )
+            )*/
             
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
                 text = "Aprende cultivando",
                 fontSize = 16.sp,
-                color = GreenPrimary
+                color = GreenDark
             )
             
             Spacer(modifier = Modifier.height(48.dp))
@@ -109,7 +112,7 @@ fun LoadingScreen(
                 Text(
                     text = "Cargando...",
                     fontSize = 14.sp,
-                    color = Color.Gray
+                    color = Color.White
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -184,64 +187,6 @@ fun FloatingPlants() {
     }
 }
 
-private fun DrawScope.drawGameLogo(scale: Float) {
-    val centerX = size.width / 2
-    val centerY = size.height / 2
-    
-    // Sol
-    drawCircle(
-        color = SunYellow,
-        radius = 30f * scale,
-        center = Offset(centerX, centerY - 80f)
-    )
-    
-    // Rayos del sol
-    for (i in 0..7) {
-        val angle = (i * 45).toDouble()
-        val startX = centerX + (35f * scale * kotlin.math.cos(Math.toRadians(angle))).toFloat()
-        val startY = centerY - 80f + (35f * scale * kotlin.math.sin(Math.toRadians(angle))).toFloat()
-        val endX = centerX + (50f * scale * kotlin.math.cos(Math.toRadians(angle))).toFloat()
-        val endY = centerY - 80f + (50f * scale * kotlin.math.sin(Math.toRadians(angle))).toFloat()
-        
-        drawLine(
-            color = SunYellow,
-            start = Offset(startX, startY),
-            end = Offset(endX, endY),
-            strokeWidth = 4f
-        )
-    }
-    
-    // Maceta
-    val potPath = Path().apply {
-        moveTo(centerX - 50f, centerY + 20f)
-        lineTo(centerX - 60f, centerY + 80f)
-        lineTo(centerX + 60f, centerY + 80f)
-        lineTo(centerX + 50f, centerY + 20f)
-        close()
-    }
-    drawPath(potPath, BrownPrimary)
-    
-    // Tierra
-    drawCircle(
-        color = BrownDark,
-        radius = 55f,
-        center = Offset(centerX, centerY + 25f)
-    )
-    
-    // Planta en el centro
-    // Tallo
-    drawLine(
-        color = GreenPrimary,
-        start = Offset(centerX, centerY + 20f),
-        end = Offset(centerX, centerY - 40f),
-        strokeWidth = 8f * scale
-    )
-    
-    // Hojas
-    drawLeaf(Offset(centerX - 30f, centerY - 10f), 25f * scale, GreenPrimary)
-    drawLeaf(Offset(centerX + 30f, centerY - 10f), 25f * scale, GreenPrimary)
-    drawLeaf(Offset(centerX, centerY - 40f), 20f * scale, GreenLight)
-}
 
 private fun DrawScope.drawLeaf(center: Offset, size: Float, color: Color) {
     val path = Path().apply {
@@ -259,5 +204,98 @@ private fun DrawScope.drawLeaf(center: Offset, size: Float, color: Color) {
         close()
     }
     drawPath(path, color)
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun LoadingScreenPreview() {
+    MiPrimerHuertoTheme {
+        // Para el Preview, creamos una versión simplificada sin ViewModel
+        LoadingScreenContent()
+    }
+}
+
+@Composable
+fun LoadingScreenContent() {
+    var loadingProgress by remember { mutableFloatStateOf(0f) }
+    
+    // Animación del logo
+    val infiniteTransition = rememberInfiniteTransition(label = "logo_animation")
+    val logoScale by infiniteTransition.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(SkyBlue, GreenLight)
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            // Logo animado
+            Image(
+                painter = painterResource(id = R.drawable.logo),
+                contentDescription = "Logo del juego",
+                modifier = Modifier
+                    .size(200.dp)
+                    .scale(logoScale)
+            )
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Título
+            Text(
+                text = "Mi Primer Huerto",
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                color = GreenDark
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "Aprende cultivando",
+                fontSize = 16.sp,
+                color = GreenPrimary
+            )
+            
+            Spacer(modifier = Modifier.height(48.dp))
+            
+            // Barra de progreso personalizada
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth(0.8f)
+            ) {
+                Text(
+                    text = "Cargando...",
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                AnimatedLoadingBar(
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+        
+        // Plantas decorativas flotantes
+        FloatingPlants()
+    }
 }
 
