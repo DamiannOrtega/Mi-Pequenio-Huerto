@@ -17,11 +17,13 @@ Un juego educativo para Android diseñado para niños de primaria, donde aprende
 ### 🎮 Gameplay
 
 - **Pantalla de Carga**: Logo animado con barra de progreso personalizada
-- **Registro de Usuario**: Selección de personaje (jardinero/jardinera) y nombre
+- **Registro de Usuario**: Selección de personaje (jardinero/jardinera) y nombre (selección por imagen)
 - **Pantalla Principal**: Sistema de múltiples macetas con deslizamiento horizontal
 - **Sistema de Tienda**: Compra de semillas, fertilizantes, pesticidas y macetas
 - **Información Detallada**: Consulta el estado y progreso de cada planta
 - **Carrusel de Macetas**: Navegación horizontal para gestionar múltiples plantas
+- **Animación al Plantar**: Efectos visuales al sembrar la semilla en la maceta
+- **Ayuda Contextual**: Icono "?" con información educativa de cada planta
 
 ### 🌿 Sistema de Plantas
 
@@ -36,13 +38,16 @@ Un juego educativo para Android diseñado para niños de primaria, donde aprende
   - Cosechable/Florecimiento
 - **Sistema de Tiempo Real**: 1 hora real = 1 día del juego
 - **Sistema Diferenciado**: Plantas ornamentales vs cosechables con mecánicas distintas
+- **Contador de Etapa**: Muestra el tiempo restante hasta la siguiente fase
+- **Deterioro Progresivo**: Apariencia se degrada si falta agua o hay plagas
+- **Limpieza de Maceta**: Retira restos cuando una planta muere
 
 ### 💧 Mecánicas de Juego
 
 - **Riego**: Mantén el nivel de agua de tu planta
 - **Fertilizante**: Mejora rápidamente la salud de la planta
 - **Control de Plagas**: Elimina plagas que aparecen aleatoriamente
-- **Sistema de Salud**: La planta puede morir si no se cuida
+- **Sistema de Salud**: La vida desciende gradualmente si el agua es baja o hay plagas; la planta puede morir si no se cuida
 - **Puntos y Monedas**: Gana recompensas al cuidar y cosechar
 - **Sistema de Múltiples Macetas**: Hasta 5 macetas independientes
 - **Compra de Macetas**: 500 estrellas por maceta nueva
