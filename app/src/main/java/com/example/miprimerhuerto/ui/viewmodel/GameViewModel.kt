@@ -47,10 +47,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     
     private suspend fun updatePlantState() {
         val currentState = _gameState.value
-        val plant = currentState.currentPlant ?: return
         
-        if (plant.isDead()) return
+        // Actualizar todas las plantas en todas las macetas
+        val updatedPots = currentState.plantPots.map { pot ->
+            if (pot.plant != null && !pot.plant.isDead()) {
+                val updatedPlant = updateSinglePlant(pot.plant)
+                pot.copy(plant = updatedPlant)
+            } else {
+                pot
+            }
+        }
         
+        val newState = currentState.copy(plantPots = updatedPots)
+        saveGameState(newState)
+    }
+    
+    private suspend fun updateSinglePlant(plant: Plant): Plant {
         val plantInfo = PlantTypeData.getInfo(plant.type)
         
         // Calcular consumo de agua por segundo
@@ -60,7 +72,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         var newWaterLevel = (plant.waterLevel - waterPerSecond).coerceIn(0f, 100f)
         var newHealth = plant.health
         
-        DebugConfig.log("Agua: ${newWaterLevel.toInt()}% | Salud: ${newHealth.toInt()}% | Consumo/s: $waterPerSecond")
+        DebugConfig.log("Planta ${plant.type}: Agua: ${newWaterLevel.toInt()}% | Salud: ${newHealth.toInt()}% | Consumo/s: $waterPerSecond")
         
         // Si el agua está baja, disminuir la salud
         if (newWaterLevel < 25f) {
@@ -117,7 +129,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         
-        saveGameState(currentState.copy(currentPlant = updatedPlant))
+        return updatedPlant
     }
     
     private fun checkStageProgression(plant: Plant, plantInfo: PlantTypeInfo): PlantStage {
@@ -125,7 +137,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         
         val timeInStage = plant.getTimeInCurrentStage()
         val stages = PlantStageData.getStagesForPlant(plantInfo.isHarvestable)
-        val currentStageInfo = stages.find { it.stage == plant.stage } ?: return plant.stage
+        val currentStageInfo = stages.find { it.stage == plant.stage }
+        
+        if (currentStageInfo == null) {
+            return plant.stage
+        }
         
         val stageDuration = (plantInfo.growthDuration * currentStageInfo.durationPercentage).toLong()
         
@@ -213,10 +229,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    fun waterPlant(amount: Float = 10f) {
+    fun waterPlant(amount: Float = 10f, potId: Int = 0) {
         viewModelScope.launch {
             val currentState = _gameState.value
-            val plant = currentState.currentPlant ?: return@launch
+            val pot = currentState.getPotById(potId) ?: return@launch
+            val plant = pot.plant ?: return@launch
             
             if (plant.isDead()) return@launch
             
@@ -228,10 +245,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     lastWatered = System.currentTimeMillis()
                 )
                 
-                val newState = currentState.copy(
-                    currentPlant = overwateredPlant,
-                    // No se ganan puntos por sobrerregar
-                )
+                val updatedPots = currentState.plantPots.map { p ->
+                    if (p.id == potId) p.copy(plant = overwateredPlant) else p
+                }
+                
+                val newState = currentState.copy(plantPots = updatedPots)
                 saveGameState(newState)
                 emitEvent(UiEvent.Overwatered)
             } else {
@@ -254,8 +272,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } else 0
                 
+                val updatedPots = currentState.plantPots.map { p ->
+                    if (p.id == potId) p.copy(plant = wateredPlant) else p
+                }
+                
                 val newState = currentState.copy(
-                    currentPlant = wateredPlant,
+                    plantPots = updatedPots,
                     points = currentState.points + pointsToAdd
                 )
                 saveGameState(newState)
@@ -267,10 +289,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    fun applyFertilizer() {
+    fun applyFertilizer(potId: Int = 0) {
         viewModelScope.launch {
             val currentState = _gameState.value
-            val plant = currentState.currentPlant ?: return@launch
+            val pot = currentState.getPotById(potId) ?: return@launch
+            val plant = pot.plant ?: return@launch
             
             if (plant.isDead() || currentState.fertilizers <= 0) return@launch
             
@@ -286,8 +309,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 GameState.ORNAMENTAL_FERTILIZE_POINTS
             }
             
+            val updatedPots = currentState.plantPots.map { p ->
+                if (p.id == potId) p.copy(plant = fertilizedPlant) else p
+            }
+            
             val newState = currentState.copy(
-                currentPlant = fertilizedPlant,
+                plantPots = updatedPots,
                 fertilizers = currentState.fertilizers - 1,
                 points = currentState.points + fertilizerPoints
             )
@@ -296,10 +323,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    fun removePest() {
+    fun removePest(potId: Int = 0) {
         viewModelScope.launch {
             val currentState = _gameState.value
-            val plant = currentState.currentPlant ?: return@launch
+            val pot = currentState.getPotById(potId) ?: return@launch
+            val plant = pot.plant ?: return@launch
             
             if (!plant.hasPest || currentState.pesticides <= 0) return@launch
             
@@ -312,8 +340,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 GameState.ORNAMENTAL_PEST_CONTROL_POINTS
             }
             
+            val updatedPots = currentState.plantPots.map { p ->
+                if (p.id == potId) p.copy(plant = treatedPlant) else p
+            }
+            
             val newState = currentState.copy(
-                currentPlant = treatedPlant,
+                plantPots = updatedPots,
                 pesticides = currentState.pesticides - 1,
                 points = currentState.points + pestControlPoints
             )
@@ -322,18 +354,23 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    fun harvestPlant() {
+    fun harvestPlant(potId: Int = 0) {
         viewModelScope.launch {
             val currentState = _gameState.value
-            val plant = currentState.currentPlant ?: return@launch
+            val pot = currentState.getPotById(potId) ?: return@launch
+            val plant = pot.plant ?: return@launch
             
             if (!plant.canHarvest()) return@launch
             
             val plantInfo = PlantTypeData.getInfo(plant.type)
             val harvestPoints = plantInfo.harvestPoints
             
+            val updatedPots = currentState.plantPots.map { p ->
+                if (p.id == potId) p.copy(plant = null) else p
+            }
+            
             val newState = currentState.copy(
-                currentPlant = null,
+                plantPots = updatedPots,
                 points = currentState.points + harvestPoints,
                 totalPlantsHarvested = currentState.totalPlantsHarvested + 1
             )
@@ -342,18 +379,23 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    fun removePlant() {
+    fun removePlant(potId: Int = 0) {
         viewModelScope.launch {
             val currentState = _gameState.value
-            val plant = currentState.currentPlant ?: return@launch
+            val pot = currentState.getPotById(potId) ?: return@launch
+            val plant = pot.plant ?: return@launch
+            
+            val updatedPots = currentState.plantPots.map { p ->
+                if (p.id == potId) p.copy(plant = null) else p
+            }
             
             val newState = if (plant.isDead()) {
                 currentState.copy(
-                    currentPlant = null,
+                    plantPots = updatedPots,
                     totalPlantsDied = currentState.totalPlantsDied + 1
                 )
             } else {
-                currentState.copy(currentPlant = null)
+                currentState.copy(plantPots = updatedPots)
             }
             
             saveGameState(newState)
@@ -361,10 +403,35 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    fun cutOrnamentalPlant() {
+    fun cleanDeadPlant(potId: Int = 0) {
         viewModelScope.launch {
             val currentState = _gameState.value
-            val plant = currentState.currentPlant ?: return@launch
+            val pot = currentState.getPotById(potId) ?: return@launch
+            val plant = pot.plant ?: return@launch
+            
+            // Solo permitir limpiar plantas muertas
+            if (!plant.isDead()) return@launch
+            
+            val updatedPots = currentState.plantPots.map { p ->
+                if (p.id == potId) p.copy(plant = null) else p
+            }
+            
+            val newState = currentState.copy(
+                plantPots = updatedPots,
+                points = (currentState.points - 50).coerceAtLeast(0), // Quitar 50 puntos como penalización
+                totalPlantsDied = currentState.totalPlantsDied + 1
+            )
+            
+            saveGameState(newState)
+            emitEvent(UiEvent.DeadPlantCleaned(50)) // Notificar la penalización
+        }
+    }
+    
+    fun cutOrnamentalPlant(potId: Int = 0) {
+        viewModelScope.launch {
+            val currentState = _gameState.value
+            val pot = currentState.getPotById(potId) ?: return@launch
+            val plant = pot.plant ?: return@launch
             
             val plantInfo = PlantTypeData.getInfo(plant.type)
             if (plantInfo.isHarvestable) return@launch // Solo para plantas ornamentales
@@ -372,8 +439,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             // Dar puntos especiales por cortar una planta ornamental en su mejor momento
             val cutPoints = GameState.ORNAMENTAL_CARE_POINTS
             
+            val updatedPots = currentState.plantPots.map { p ->
+                if (p.id == potId) p.copy(plant = null) else p
+            }
+            
             val newState = currentState.copy(
-                currentPlant = null,
+                plantPots = updatedPots,
                 points = currentState.points + cutPoints
             )
             
@@ -480,14 +551,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (!DebugConfig.DEBUG_MODE) return
         
         val currentState = _gameState.value
-        val plant = currentState.currentPlant ?: return
         
-        val updatedPlant = plant.copy(hasPest = true)
-        val newState = currentState.copy(currentPlant = updatedPlant)
+        // Aplicar plaga a todas las plantas en todas las macetas
+        val updatedPots = currentState.plantPots.map { pot ->
+            if (pot.plant != null && !pot.plant.isDead()) {
+                pot.copy(plant = pot.plant.copy(hasPest = true))
+            } else {
+                pot
+            }
+        }
+        
+        val newState = currentState.copy(plantPots = updatedPots)
         
         viewModelScope.launch {
             saveGameState(newState)
-            DebugConfig.log("🐛 DEBUG: Plaga simulada")
+            DebugConfig.log("🐛 DEBUG: Plaga simulada en todas las plantas")
         }
     }
     
@@ -495,14 +573,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (!DebugConfig.DEBUG_MODE) return
         
         val currentState = _gameState.value
-        val plant = currentState.currentPlant ?: return
         
-        val updatedPlant = plant.copy(waterLevel = 20f) // Agua baja
-        val newState = currentState.copy(currentPlant = updatedPlant)
+        // Aplicar agua baja a todas las plantas en todas las macetas
+        val updatedPots = currentState.plantPots.map { pot ->
+            if (pot.plant != null && !pot.plant.isDead()) {
+                pot.copy(plant = pot.plant.copy(waterLevel = 20f)) // Agua baja
+            } else {
+                pot
+            }
+        }
+        
+        val newState = currentState.copy(plantPots = updatedPots)
         
         viewModelScope.launch {
             saveGameState(newState)
-            DebugConfig.log("💧 DEBUG: Agua baja simulada (20%)")
+            DebugConfig.log("💧 DEBUG: Agua baja simulada (20%) en todas las plantas")
         }
     }
     
@@ -510,33 +595,39 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (!DebugConfig.DEBUG_MODE) return
         
         val currentState = _gameState.value
-        val plant = currentState.currentPlant ?: return
         
-        // Avanzar a la siguiente etapa
-        val currentStage = plant.stage
-        val nextStage = when (currentStage) {
-            PlantStage.SEMILLA -> PlantStage.GERMINACION
-            PlantStage.GERMINACION -> PlantStage.PLANTULA
-            PlantStage.PLANTULA -> PlantStage.JOVEN
-            PlantStage.JOVEN -> PlantStage.MADURO
-            PlantStage.MADURO -> if (PlantTypeData.getInfo(plant.type).isHarvestable) PlantStage.COSECHABLE else PlantStage.FLORECIMIENTO
-            PlantStage.COSECHABLE -> PlantStage.SEMILLA // Reiniciar
-            PlantStage.FLORECIMIENTO -> PlantStage.SEMILLA // Reiniciar
-            PlantStage.MUERTA -> PlantStage.SEMILLA // Reiniciar
+        // Avanzar etapa de todas las plantas en todas las macetas
+        val updatedPots = currentState.plantPots.map { pot ->
+            if (pot.plant != null && !pot.plant.isDead()) {
+                val plant = pot.plant
+                val currentStage = plant.stage
+                val plantInfo = PlantTypeData.getInfo(plant.type)
+                val nextStage = PlantStageData.getNextStage(currentStage, plantInfo.isHarvestable) 
+                    ?: PlantStage.SEMILLA // Reiniciar si no hay siguiente etapa
+                
+                val updatedPlant = plant.copy(
+                    stage = nextStage,
+                    stageStartedAt = System.currentTimeMillis()
+                )
+                
+                pot.copy(plant = updatedPlant)
+            } else {
+                pot
+            }
         }
         
-        val updatedPlant = plant.copy(
-            stage = nextStage,
-            stageStartedAt = System.currentTimeMillis()
-        )
-        val newState = currentState.copy(currentPlant = updatedPlant)
+        val newState = currentState.copy(plantPots = updatedPots)
         
         viewModelScope.launch {
             saveGameState(newState)
-            DebugConfig.log("🌱 DEBUG: Etapa cambiada de $currentStage a $nextStage")
+            DebugConfig.log("🌱 DEBUG: Etapa cambiada en todas las plantas")
             
-            // Enviar notificación de cambio de etapa
-            sendStageChangeNotification(plant.type, nextStage)
+            // Enviar notificación de cambio de etapa para cada planta
+            updatedPots.forEach { pot ->
+                if (pot.plant != null && !pot.plant.isDead()) {
+                    sendStageChangeNotification(pot.plant.type, pot.plant.stage)
+                }
+            }
         }
     }
     
@@ -554,6 +645,65 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    fun triggerDebugWaterAll() {
+        if (!DebugConfig.DEBUG_MODE) return
+        
+        val currentState = _gameState.value
+        
+        // Regar todas las plantas en todas las macetas
+        val updatedPots = currentState.plantPots.map { pot ->
+            if (pot.plant != null && !pot.plant.isDead()) {
+                val plant = pot.plant
+                val plantInfo = PlantTypeData.getInfo(plant.type)
+                val waterPoints = if (plantInfo.isHarvestable) {
+                    GameState.WATER_POINTS
+                } else {
+                    GameState.ORNAMENTAL_WATER_POINTS
+                }
+                
+                val wateredPlant = plant.copy(
+                    waterLevel = 100f, // Agua al máximo
+                    lastWatered = System.currentTimeMillis()
+                )
+                
+                pot.copy(plant = wateredPlant)
+            } else {
+                pot
+            }
+        }
+        
+        val newState = currentState.copy(plantPots = updatedPots)
+        
+        viewModelScope.launch {
+            saveGameState(newState)
+            DebugConfig.log("💧 DEBUG: Todas las plantas regadas al máximo")
+        }
+    }
+    
+    fun triggerDebugLowerHealth() {
+        if (!DebugConfig.DEBUG_MODE) return
+        
+        val currentState = _gameState.value
+        
+        // Bajar salud de todas las plantas en todas las macetas
+        val updatedPots = currentState.plantPots.map { pot ->
+            if (pot.plant != null && !pot.plant.isDead()) {
+                val plant = pot.plant
+                val newHealth = (plant.health - 10f).coerceAtLeast(0f)
+                pot.copy(plant = plant.copy(health = newHealth))
+            } else {
+                pot
+            }
+        }
+        
+        val newState = currentState.copy(plantPots = updatedPots)
+        
+        viewModelScope.launch {
+            saveGameState(newState)
+            DebugConfig.log("❤️ DEBUG: Salud reducida (-10%) en todas las plantas")
+        }
+    }
+    
     fun clearEvent() {
         _uiEvent.value = null
     }
@@ -567,6 +717,7 @@ sealed class UiEvent {
     data class PestRemoved(val pointsEarned: Int) : UiEvent()
     data class PlantHarvested(val pointsEarned: Int) : UiEvent()
     data object PlantRemoved : UiEvent()
+    data class DeadPlantCleaned(val pointsLost: Int) : UiEvent()
     data class OrnamentalPlantCut(val pointsEarned: Int) : UiEvent()
     data class SeedPurchased(val plantType: PlantType) : UiEvent()
     data object FertilizerPurchased : UiEvent()

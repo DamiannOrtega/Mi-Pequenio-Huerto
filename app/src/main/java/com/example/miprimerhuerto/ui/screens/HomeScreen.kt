@@ -191,6 +191,15 @@ fun HomeScreen(
                 kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
                 snackbarHostState.currentSnackbarData?.dismiss()
             }
+            is UiEvent.DeadPlantCleaned -> {
+                snackbarHostState.showSnackbar(
+                    message = "🧹 Planta muerta limpiada. -${event.pointsLost} puntos por descuido ⭐",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
             else -> {}
         }
     }
@@ -249,19 +258,6 @@ fun HomeScreen(
                         selectedPotId = potId
                         showPlantDialog = true 
                     }
-                )
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // Controles de acción
-                ActionControls(
-                    gameState = gameState,
-                    gameViewModel = gameViewModel,
-                    onFertilize = { gameViewModel.applyFertilizer() },
-                    onRemovePest = { gameViewModel.removePest() },
-                    onHarvest = { gameViewModel.harvestPlant() },
-                    onCutOrnamental = { gameViewModel.cutOrnamentalPlant() },
-                    onRemovePlant = { gameViewModel.removePlant() }
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -348,6 +344,34 @@ fun HomeScreen(
                         Icon(Icons.Default.Star, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("⭐ +50 Estrellas (DEBUG)")
+                    }
+                    
+                    Button(
+                        onClick = {
+                            gameViewModel.triggerDebugWaterAll()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF00BCD4).copy(alpha = 0.8f)
+                        )
+                    ) {
+                        Icon(Icons.Default.WaterDrop, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("💧 Regar Todas las Plantas (DEBUG)")
+                    }
+                    
+                    Button(
+                        onClick = {
+                            gameViewModel.triggerDebugLowerHealth()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE91E63).copy(alpha = 0.8f)
+                        )
+                    ) {
+                        Icon(Icons.Default.Favorite, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("❤️ Bajar Salud -10% (DEBUG)")
                     }
                 }
             }
@@ -603,13 +627,15 @@ fun WaterButton(
 fun ActionControls(
     gameState: GameState,
     gameViewModel: GameViewModel,
+    selectedPotId: Int,
     onFertilize: () -> Unit,
     onRemovePest: () -> Unit,
     onHarvest: () -> Unit,
     onCutOrnamental: () -> Unit,
     onRemovePlant: () -> Unit
 ) {
-    val plant = gameState.currentPlant
+    val pot = gameState.getPotById(selectedPotId)
+    val plant = pot?.plant
     val hasPlant = plant != null && !plant.isDead()
     
     // Estados para el botón de regar con presionar y mantener
@@ -618,7 +644,7 @@ fun ActionControls(
     // LaunchedEffect para riego continuo cuando se mantiene presionado
     LaunchedEffect(isWatering) {
         while (isWatering) {
-            gameViewModel.waterPlant(amount = 2f) // 2% cada 100ms cuando se mantiene presionado
+            gameViewModel.waterPlant(amount = 2f, potId = selectedPotId) // 2% cada 100ms cuando se mantiene presionado
             kotlinx.coroutines.delay(100)
         }
     }
@@ -653,7 +679,7 @@ fun ActionControls(
                 WaterButton(
                     enabled = hasPlant,
                     onWater = {
-                        gameViewModel.waterPlant(amount = 10f) // 10% por clic
+                        gameViewModel.waterPlant(amount = 10f, potId = selectedPotId) // 10% por clic
                     },
                     onWateringStart = { isWatering = true },
                     onWateringStop = { isWatering = false }

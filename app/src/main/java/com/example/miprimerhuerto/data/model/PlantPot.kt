@@ -9,10 +9,11 @@ data class PlantPot(
     val plant: Plant? = null,
     val unlockedAt: Long? = null
 ) {
-    fun hasPlant(): Boolean = plant != null && !plant.isDead()
+    fun hasPlant(): Boolean = plant != null
+    fun hasLivingPlant(): Boolean = plant != null && !plant.isDead()
     
     fun canPlant(plantType: PlantType, ownedSeeds: Map<PlantType, Int>): Boolean {
-        return isUnlocked && !hasPlant() && (ownedSeeds[plantType] ?: 0) > 0
+        return isUnlocked && !hasLivingPlant() && (ownedSeeds[plantType] ?: 0) > 0
     }
     
     companion object {
