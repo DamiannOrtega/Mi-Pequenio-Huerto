@@ -5,6 +5,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.compose.ui.platform.LocalContext
 import com.example.miprimerhuerto.ui.screens.HomeScreen
 import com.example.miprimerhuerto.ui.screens.LoadingScreen
 import com.example.miprimerhuerto.ui.screens.PlantInfoScreen

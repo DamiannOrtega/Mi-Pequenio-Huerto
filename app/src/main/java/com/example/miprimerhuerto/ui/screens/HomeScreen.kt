@@ -60,6 +60,7 @@ fun HomeScreen(
     
     var showPlantDialog by remember { mutableStateOf(false) }
     var showHarvestDialog by remember { mutableStateOf(false) }
+    var selectedPotId by remember { mutableStateOf(0) }
     
     // Sensor de sacudida para regar la planta
     ShakeSensor(
@@ -172,6 +173,24 @@ fun HomeScreen(
                 kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
                 snackbarHostState.currentSnackbarData?.dismiss()
             }
+            is UiEvent.PlantPotPurchased -> {
+                snackbarHostState.showSnackbar(
+                    message = "🏺 ¡Nueva maceta desbloqueada! Puedes plantar más semillas",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            is UiEvent.OrnamentalPlantCut -> {
+                snackbarHostState.showSnackbar(
+                    message = "✂️ ¡Planta ornamental cortada! +${event.pointsEarned} puntos ⭐",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
             else -> {}
         }
     }
@@ -222,10 +241,14 @@ fun HomeScreen(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Área de la planta
-                PlantArea(
+                // Área de las macetas con deslizamiento horizontal
+                PlantPotsCarousel(
                     gameState = gameState,
-                    onPlantClick = { showPlantDialog = true }
+                    gameViewModel = gameViewModel,
+                    onPlantClick = { potId -> 
+                        selectedPotId = potId
+                        showPlantDialog = true 
+                    }
                 )
                 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -237,6 +260,7 @@ fun HomeScreen(
                     onFertilize = { gameViewModel.applyFertilizer() },
                     onRemovePest = { gameViewModel.removePest() },
                     onHarvest = { gameViewModel.harvestPlant() },
+                    onCutOrnamental = { gameViewModel.cutOrnamentalPlant() },
                     onRemovePlant = { gameViewModel.removePlant() }
                 )
                 
@@ -311,6 +335,20 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("🌱 Simular Cambio de Etapa")
                     }
+                    
+                    Button(
+                        onClick = {
+                            gameViewModel.addDebugStars(50)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFD700).copy(alpha = 0.8f)
+                        )
+                    ) {
+                        Icon(Icons.Default.Star, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("⭐ +50 Estrellas (DEBUG)")
+                    }
                 }
             }
         }
@@ -320,9 +358,10 @@ fun HomeScreen(
     if (showPlantDialog) {
         PlantSeedDialog(
             gameState = gameState,
+            potId = selectedPotId,
             onDismiss = { showPlantDialog = false },
             onPlant = { plantType ->
-                gameViewModel.plantSeed(plantType)
+                gameViewModel.plantSeedInPot(plantType, selectedPotId)
                 showPlantDialog = false
             }
         )
@@ -417,12 +456,33 @@ fun PlantInfo(plant: Plant) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(
-            text = plantInfo.name,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = GreenDark
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = plantInfo.name,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = GreenDark
+            )
+            
+            // Indicador especial para plantas ornamentales
+            if (!plantInfo.isHarvestable) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFE91E63).copy(alpha = 0.2f)
+                ) {
+                    Text(
+                        text = "✨ +3x puntos",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE91E63),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
         
         Text(
             text = stageInfo?.name ?: "Desconocido",
@@ -546,6 +606,7 @@ fun ActionControls(
     onFertilize: () -> Unit,
     onRemovePest: () -> Unit,
     onHarvest: () -> Unit,
+    onCutOrnamental: () -> Unit,
     onRemovePlant: () -> Unit
 ) {
     val plant = gameState.currentPlant
@@ -622,6 +683,18 @@ fun ActionControls(
                         enabled = true,
                         backgroundColor = SunYellow
                     )
+                } else if (plant != null && !plant.isDead()) {
+                    val plantInfo = PlantTypeData.getInfo(plant.type)
+                    if (!plantInfo.isHarvestable && plant.stage == PlantStage.FLORECIMIENTO) {
+                        // Botón "Cortar" para plantas ornamentales en etapa máxima
+                        ActionButton(
+                            icon = Icons.Default.ContentCut,
+                            label = "Cortar",
+                            onClick = onCutOrnamental,
+                            enabled = true,
+                            backgroundColor = Color(0xFFE91E63) // Rosa para plantas ornamentales
+                        )
+                    }
                 } else if (plant?.isDead() == true) {
                     ActionButton(
                         icon = Icons.Default.Delete,
@@ -717,6 +790,7 @@ fun InventoryItem(
 @Composable
 fun PlantSeedDialog(
     gameState: GameState,
+    potId: Int,
     onDismiss: () -> Unit,
     onPlant: (PlantType) -> Unit
 ) {
@@ -724,7 +798,7 @@ fun PlantSeedDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Elige una semilla",
+                text = "Elige una semilla para Maceta ${potId + 1}",
                 fontWeight = FontWeight.Bold
             )
         },

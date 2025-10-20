@@ -168,6 +168,51 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    fun plantSeedInPot(plantType: PlantType, potId: Int) {
+        viewModelScope.launch {
+            val currentState = _gameState.value
+            val pot = currentState.getPotById(potId)
+            if (pot == null || !pot.canPlant(plantType, currentState.ownedSeeds)) return@launch
+            
+            val newPlant = Plant(type = plantType)
+            val updatedSeeds = currentState.ownedSeeds.toMutableMap()
+            updatedSeeds[plantType] = (updatedSeeds[plantType] ?: 0) - 1
+            
+            val updatedPots = currentState.plantPots.map { p ->
+                if (p.id == potId) p.copy(plant = newPlant) else p
+            }
+            
+            val newState = currentState.copy(
+                plantPots = updatedPots,
+                ownedSeeds = updatedSeeds,
+                lastNotifiedStage = null
+            )
+            saveGameState(newState)
+            emitEvent(UiEvent.SeedPlanted(plantType))
+        }
+    }
+    
+    fun buyPlantPot() {
+        viewModelScope.launch {
+            val currentState = _gameState.value
+            if (!currentState.canBuyPlantPot()) return@launch
+            
+            val newPotId = currentState.plantPots.size
+            val newPot = PlantPot(
+                id = newPotId,
+                isUnlocked = true,
+                unlockedAt = System.currentTimeMillis()
+            )
+            
+            val newState = currentState.copy(
+                plantPots = currentState.plantPots + newPot,
+                points = currentState.points - PlantPot.POT_COST
+            )
+            saveGameState(newState)
+            emitEvent(UiEvent.PlantPotPurchased)
+        }
+    }
+    
     fun waterPlant(amount: Float = 10f) {
         viewModelScope.launch {
             val currentState = _gameState.value
@@ -200,7 +245,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 
                 // Solo dar puntos si realmente se incrementó el agua
-                val pointsToAdd = if (actualIncrement > 0) GameState.WATER_POINTS else 0
+                val plantInfo = PlantTypeData.getInfo(plant.type)
+                val pointsToAdd = if (actualIncrement > 0) {
+                    if (plantInfo.isHarvestable) {
+                        GameState.WATER_POINTS
+                    } else {
+                        GameState.ORNAMENTAL_WATER_POINTS
+                    }
+                } else 0
                 
                 val newState = currentState.copy(
                     currentPlant = wateredPlant,
@@ -227,13 +279,20 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 lastFertilized = System.currentTimeMillis()
             )
             
+            val plantInfo = PlantTypeData.getInfo(plant.type)
+            val fertilizerPoints = if (plantInfo.isHarvestable) {
+                GameState.FERTILIZE_POINTS
+            } else {
+                GameState.ORNAMENTAL_FERTILIZE_POINTS
+            }
+            
             val newState = currentState.copy(
                 currentPlant = fertilizedPlant,
                 fertilizers = currentState.fertilizers - 1,
-                points = currentState.points + GameState.FERTILIZE_POINTS
+                points = currentState.points + fertilizerPoints
             )
             saveGameState(newState)
-            emitEvent(UiEvent.FertilizerApplied(GameState.FERTILIZE_POINTS))
+            emitEvent(UiEvent.FertilizerApplied(fertilizerPoints))
         }
     }
     
@@ -246,13 +305,20 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             
             val treatedPlant = plant.copy(hasPest = false)
             
+            val plantInfo = PlantTypeData.getInfo(plant.type)
+            val pestControlPoints = if (plantInfo.isHarvestable) {
+                GameState.PEST_CONTROL_POINTS
+            } else {
+                GameState.ORNAMENTAL_PEST_CONTROL_POINTS
+            }
+            
             val newState = currentState.copy(
                 currentPlant = treatedPlant,
                 pesticides = currentState.pesticides - 1,
-                points = currentState.points + GameState.PEST_CONTROL_POINTS
+                points = currentState.points + pestControlPoints
             )
             saveGameState(newState)
-            emitEvent(UiEvent.PestRemoved(GameState.PEST_CONTROL_POINTS))
+            emitEvent(UiEvent.PestRemoved(pestControlPoints))
         }
     }
     
@@ -292,6 +358,27 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             
             saveGameState(newState)
             emitEvent(UiEvent.PlantRemoved)
+        }
+    }
+    
+    fun cutOrnamentalPlant() {
+        viewModelScope.launch {
+            val currentState = _gameState.value
+            val plant = currentState.currentPlant ?: return@launch
+            
+            val plantInfo = PlantTypeData.getInfo(plant.type)
+            if (plantInfo.isHarvestable) return@launch // Solo para plantas ornamentales
+            
+            // Dar puntos especiales por cortar una planta ornamental en su mejor momento
+            val cutPoints = GameState.ORNAMENTAL_CARE_POINTS
+            
+            val newState = currentState.copy(
+                currentPlant = null,
+                points = currentState.points + cutPoints
+            )
+            
+            saveGameState(newState)
+            emitEvent(UiEvent.OrnamentalPlantCut(cutPoints))
         }
     }
     
@@ -453,6 +540,20 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    fun addDebugStars(amount: Int) {
+        if (!DebugConfig.DEBUG_MODE) return
+        
+        val currentState = _gameState.value
+        val newState = currentState.copy(
+            points = currentState.points + amount
+        )
+        
+        viewModelScope.launch {
+            saveGameState(newState)
+            DebugConfig.log("⭐ DEBUG: +$amount estrellas añadidas")
+        }
+    }
+    
     fun clearEvent() {
         _uiEvent.value = null
     }
@@ -466,9 +567,11 @@ sealed class UiEvent {
     data class PestRemoved(val pointsEarned: Int) : UiEvent()
     data class PlantHarvested(val pointsEarned: Int) : UiEvent()
     data object PlantRemoved : UiEvent()
+    data class OrnamentalPlantCut(val pointsEarned: Int) : UiEvent()
     data class SeedPurchased(val plantType: PlantType) : UiEvent()
     data object FertilizerPurchased : UiEvent()
     data object PesticidePurchased : UiEvent()
+    data object PlantPotPurchased : UiEvent()
     data object PestAppeared : UiEvent()
     data object PlantReadyToHarvest : UiEvent()
     data object PlantDied : UiEvent()

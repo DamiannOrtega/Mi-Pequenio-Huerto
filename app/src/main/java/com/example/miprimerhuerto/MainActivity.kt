@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.compose.rememberNavController
 import com.example.miprimerhuerto.notifications.PlantNotificationManager
 import com.example.miprimerhuerto.notifications.PlantNotificationService
@@ -57,7 +59,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             MiPrimerHuertoTheme(dynamicColor = false) {
                 val navController = rememberNavController()
-                val gameViewModel: GameViewModel = viewModel()
+                val gameViewModel: GameViewModel = viewModel(
+                    factory = viewModelFactory {
+                        addInitializer(GameViewModel::class) {
+                            GameViewModel(this@MainActivity.application)
+                        }
+                    }
+                )
                 
                 NavGraph(
                     navController = navController,

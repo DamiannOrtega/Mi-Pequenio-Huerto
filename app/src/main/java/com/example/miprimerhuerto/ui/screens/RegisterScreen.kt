@@ -74,8 +74,7 @@ fun RegisterScreen(
                 ) {
                     Text(
                         text = "¡Bienvenido a tu huerto!",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineLarge,
                         color = GreenDark,
                         textAlign = TextAlign.Center
                     )
@@ -84,7 +83,7 @@ fun RegisterScreen(
                     
                     Text(
                         text = "Vamos a conocernos mejor",
-                        fontSize = 16.sp,
+                        style = MaterialTheme.typography.bodyLarge,
                         color = Color.Gray,
                         textAlign = TextAlign.Center
                     )
@@ -111,8 +110,7 @@ fun RegisterScreen(
                 ) {
                     Text(
                         text = "¿Cómo te llamas?",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                         color = GreenPrimary
                     )
                     
@@ -140,8 +138,8 @@ fun RegisterScreen(
                     if (showError && name.isBlank()) {
                         Text(
                             text = "Por favor ingresa tu nombre",
+                            style = MaterialTheme.typography.bodySmall,
                             color = Color.Red,
-                            fontSize = 12.sp,
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
@@ -169,8 +167,7 @@ fun RegisterScreen(
                 ) {
                     Text(
                         text = "Elige tu personaje",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                         color = GreenPrimary
                     )
                     
@@ -205,8 +202,8 @@ fun RegisterScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "Por favor elige un personaje",
-                            color = Color.Red,
-                            fontSize = 12.sp
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Red
                         )
                     }
                 }
@@ -283,8 +280,7 @@ fun CharacterCard(
         
         Text(
             text = if (gender == Gender.JARDINERO) "Jardinero" else "Jardinera",
-            fontSize = 14.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            style = if (isSelected) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodyMedium,
             color = if (isSelected) GreenPrimary else Color.Gray
         )
     }
@@ -330,8 +326,7 @@ fun RegisterScreenContent() {
                 ) {
                     Text(
                         text = "¡Bienvenido a tu huerto!",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineLarge,
                         color = GreenDark,
                         textAlign = TextAlign.Center
                     )
@@ -340,7 +335,7 @@ fun RegisterScreenContent() {
                     
                     Text(
                         text = "Vamos a conocernos mejor",
-                        fontSize = 16.sp,
+                        style = MaterialTheme.typography.bodyLarge,
                         color = Color.Gray,
                         textAlign = TextAlign.Center
                     )
@@ -367,8 +362,7 @@ fun RegisterScreenContent() {
                 ) {
                     Text(
                         text = "¿Cómo te llamas?",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                         color = GreenPrimary
                     )
                     
@@ -396,8 +390,8 @@ fun RegisterScreenContent() {
                     if (showError && name.isBlank()) {
                         Text(
                             text = "Por favor ingresa tu nombre",
+                            style = MaterialTheme.typography.bodySmall,
                             color = Color.Red,
-                            fontSize = 12.sp,
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
@@ -425,8 +419,7 @@ fun RegisterScreenContent() {
                 ) {
                     Text(
                         text = "Elige tu personaje",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                         color = GreenPrimary
                     )
                     
@@ -461,8 +454,8 @@ fun RegisterScreenContent() {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "Por favor elige un personaje",
-                            color = Color.Red,
-                            fontSize = 12.sp
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Red
                         )
                     }
                 }
@@ -476,7 +469,7 @@ fun RegisterScreenContent() {
                 onClick = {
                     if (name.isNotBlank() && selectedGender != null) {
                         // En el preview no hacemos nada
-                    } else {
+        } else {
                         showError = true
                     }
                 },

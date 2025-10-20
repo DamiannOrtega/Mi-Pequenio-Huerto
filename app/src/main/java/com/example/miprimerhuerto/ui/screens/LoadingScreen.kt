@@ -111,7 +111,7 @@ fun LoadingScreen(
             ) {
                 Text(
                     text = "Cargando...",
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = Color.White
                 )
                 
@@ -260,8 +260,7 @@ fun LoadingScreenContent() {
             // Título
             Text(
                 text = "Mi Primer Huerto",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.displayMedium,
                 color = GreenDark
             )
             
@@ -269,7 +268,7 @@ fun LoadingScreenContent() {
             
             Text(
                 text = "Aprende cultivando",
-                fontSize = 16.sp,
+                style = MaterialTheme.typography.bodyLarge,
                 color = GreenPrimary
             )
             
@@ -282,7 +281,7 @@ fun LoadingScreenContent() {
             ) {
                 Text(
                     text = "Cargando...",
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = Color.Gray
                 )
                 

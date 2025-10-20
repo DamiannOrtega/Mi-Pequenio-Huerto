@@ -5,7 +5,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class GameState(
     val user: User? = null,
-    val currentPlant: Plant? = null,
+    val currentPlant: Plant? = null, // Mantener para compatibilidad
+    val plantPots: List<PlantPot> = listOf(
+        PlantPot(id = 0, isUnlocked = true) // Primera maceta desbloqueada por defecto
+    ),
     val points: Int = 0,
     val unlockedPlants: List<PlantType> = listOf(
         PlantType.FRIJOL,
@@ -43,12 +46,34 @@ data class GameState(
         return points >= PESTICIDE_COST
     }
     
+    fun canBuyPlantPot(): Boolean {
+        return points >= PlantPot.POT_COST && plantPots.size < PlantPot.MAX_POTS
+    }
+    
+    fun getUnlockedPots(): List<PlantPot> {
+        return plantPots.filter { it.isUnlocked }
+    }
+    
+    fun getPotById(id: Int): PlantPot? {
+        return plantPots.find { it.id == id }
+    }
+    
+    fun getAvailablePot(): PlantPot? {
+        return plantPots.find { it.isUnlocked && !it.hasPlant() }
+    }
+    
     companion object {
         const val FERTILIZER_COST = 10
         const val PESTICIDE_COST = 15
         const val WATER_POINTS = 5
         const val FERTILIZE_POINTS = 10
         const val PEST_CONTROL_POINTS = 15
+        
+        // Puntos especiales para plantas ornamentales (no cosechables)
+        const val ORNAMENTAL_WATER_POINTS = 15  // 3x más que plantas normales
+        const val ORNAMENTAL_FERTILIZE_POINTS = 30  // 3x más que plantas normales
+        const val ORNAMENTAL_PEST_CONTROL_POINTS = 45  // 3x más que plantas normales
+        const val ORNAMENTAL_CARE_POINTS = 25  // Puntos por cuidar plantas ornamentales en etapa máxima
     }
 }
 

@@ -47,6 +47,9 @@ fun ShopScreen(
             is UiEvent.PesticidePurchased -> {
                 snackbarHostState.showSnackbar("¡Pesticida comprado!")
             }
+            is UiEvent.PlantPotPurchased -> {
+                snackbarHostState.showSnackbar("¡Nueva maceta desbloqueada!")
+            }
             else -> {}
         }
     }
@@ -146,6 +149,25 @@ fun ShopScreen(
                             owned = gameState.pesticides,
                             canAfford = gameState.points >= GameState.PESTICIDE_COST,
                             onBuy = { gameViewModel.buyPesticide() }
+                        )
+                    }
+                    
+                    // Sección de macetas
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Macetas",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenDark,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                    
+                    item {
+                        PlantPotShopItem(
+                            gameState = gameState,
+                            onBuy = { gameViewModel.buyPlantPot() }
                         )
                     }
                 }
@@ -414,6 +436,141 @@ fun ToolShopItem(
                     )
                 ) {
                     Text("Comprar")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PlantPotShopItem(
+    gameState: GameState,
+    onBuy: () -> Unit
+) {
+    val canBuy = gameState.canBuyPlantPot()
+    val maxReached = gameState.plantPots.size >= com.example.miprimerhuerto.data.model.PlantPot.MAX_POTS
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = GreenLight.copy(alpha = 0.2f),
+                    modifier = Modifier.size(50.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocalFlorist,
+                            contentDescription = "Maceta",
+                            tint = GreenPrimary,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                }
+                
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Nueva Maceta",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenDark
+                        )
+                        
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = GreenLight.copy(alpha = 0.3f)
+                        ) {
+                            Text(
+                                text = "${gameState.plantPots.size}/${com.example.miprimerhuerto.data.model.PlantPot.MAX_POTS}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = GreenPrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    
+                    Text(
+                        text = if (maxReached) {
+                            "¡Has alcanzado el máximo de macetas!"
+                        } else {
+                            "Desbloquea un nuevo espacio para plantar"
+                        },
+                        fontSize = 14.sp,
+                        color = if (maxReached) Color.Red else Color.Gray
+                    )
+                }
+            }
+            
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (!maxReached) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Puntos",
+                            tint = SunYellow,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = com.example.miprimerhuerto.data.model.PlantPot.POT_COST.toString(),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (canBuy) GreenPrimary else Color.Red
+                        )
+                    }
+                    
+                    Button(
+                        onClick = onBuy,
+                        enabled = canBuy,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GreenPrimary
+                        )
+                    ) {
+                        Text("Comprar")
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.Gray.copy(alpha = 0.2f)
+                    ) {
+                        Text(
+                            text = "Máximo alcanzado",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
                 }
             }
         }
