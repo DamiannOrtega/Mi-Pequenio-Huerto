@@ -1,20 +1,19 @@
 package com.example.miprimerhuerto.ui.components
 
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image // <-- Import necesario
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.example.miprimerhuerto.R
 import com.example.miprimerhuerto.data.model.PlantStage
 import com.example.miprimerhuerto.data.model.PlantType
-import com.example.miprimerhuerto.ui.theme.*
-import kotlin.math.sin
 
 @Composable
 fun PlantVisualization(
@@ -35,307 +34,151 @@ fun PlantVisualization(
         ),
         label = "sway"
     )
-    
+
+    // --- INICIO DEL CAMBIO #2 ---
+    // Obtener el ID del recurso de la imagen, pasando ahora 'hasPest'
+    val imageResId = getPlantImageResource(plantType, stage, health, hasPest)
+    // --- FIN DEL CAMBIO #2 ---
+
     Box(modifier = modifier.size(200.dp)) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val centerX = size.width / 2
-            val centerY = size.height
-            
-            when (stage) {
-                PlantStage.SEMILLA -> {
-                    drawSeed(centerX, centerY - 20f, health)
-                }
-                PlantStage.GERMINACION -> {
-                    drawGermination(centerX, centerY, health, swayAngle)
-                }
-                PlantStage.PLANTULA -> {
-                    drawSeedling(centerX, centerY, health, swayAngle, plantType)
-                }
-                PlantStage.JOVEN -> {
-                    drawYoungPlant(centerX, centerY, health, swayAngle, plantType)
-                }
-                PlantStage.MADURO -> {
-                    drawMaturePlant(centerX, centerY, health, swayAngle, plantType)
-                }
-                PlantStage.COSECHABLE -> {
-                    drawHarvestablePlant(centerX, centerY, health, swayAngle, plantType)
-                }
-                PlantStage.FLORECIMIENTO -> {
-                    drawFloweringPlant(centerX, centerY, health, swayAngle, plantType)
-                }
-                PlantStage.MUERTA -> {
-                    drawDeadPlant(centerX, centerY)
-                }
-            }
-            
-            // Dibujar plagas si las hay
-            if (hasPest && stage != PlantStage.MUERTA) {
-                drawPests(centerX, centerY - 50f)
+        // 1. Imagen de la planta
+        Image(
+            painter = painterResource(id = imageResId),
+            contentDescription = "Planta en etapa $stage",
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    // Aplicar animación de balanceo (excepto a semilla o muerta)
+                    if (stage != PlantStage.MUERTA && stage != PlantStage.SEMILLA) {
+                        rotationZ = swayAngle
+                    }
+                },
+            contentScale = ContentScale.Fit
+        )
+
+        // --- INICIO DEL CAMBIO #1 ---
+        // 2. Canvas superpuesto ELIMINADO.
+        // La lógica de 'hasPest' ahora está dentro de 'getPlantImageResource'
+        // y la imagen principal 'imageResId' ya será la versión con plaga.
+        /*
+        if (hasPest && stage != PlantStage.MUERTA) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                ...
             }
         }
+        */
+        // --- FIN DEL CAMBIO #1 ---
     }
 }
 
-private fun DrawScope.drawSeed(x: Float, y: Float, health: Float) {
-    val seedColor = if (health > 50f) BrownPrimary else BrownDark
-    
-    // Tierra
-    drawCircle(
-        color = BrownPrimary,
-        radius = 40f,
-        center = Offset(x, y + 20f)
-    )
-    
-    // Semilla
-    drawCircle(
-        color = seedColor,
-        radius = 15f,
-        center = Offset(x, y)
-    )
-}
+/**
+ * Determina qué recurso de imagen (Drawable) usar según la etapa,
+ * el tipo, la salud y LAS PLAGAS de la planta.
+ */
+@DrawableRes
+private fun getPlantImageResource(
+    plantType: PlantType,
+    stage: PlantStage,
+    health: Float,
+    hasPest: Boolean // <-- AÑADIDO
+): Int {
 
-private fun DrawScope.drawGermination(x: Float, y: Float, health: Float, sway: Float) {
-    // Tierra
-    drawCircle(
-        color = BrownPrimary,
-        radius = 50f,
-        center = Offset(x, y - 20f)
-    )
-    
-    // Brote pequeño
-    val stemColor = if (health > 50f) GreenPrimary else GreenDark.copy(alpha = 0.6f)
-    
-    drawLine(
-        color = stemColor,
-        start = Offset(x, y - 20f),
-        end = Offset(x + sway, y - 60f),
-        strokeWidth = 4f
-    )
-    
-    // Hoja pequeña
-    drawCircle(
-        color = stemColor,
-        radius = 8f,
-        center = Offset(x + sway, y - 60f)
-    )
-}
+    // --- INICIO DEL CAMBIO #3 ---
 
-private fun DrawScope.drawSeedling(x: Float, y: Float, health: Float, sway: Float, plantType: PlantType) {
-    val stemColor = getPlantColor(health)
-    
-    // Tallo
-    drawLine(
-        color = stemColor,
-        start = Offset(x, y),
-        end = Offset(x + sway * 2, y - 80f),
-        strokeWidth = 6f
-    )
-    
-    // Hojas pequeñas
-    drawLeaf(Offset(x + sway * 2 - 20f, y - 50f), 20f, stemColor)
-    drawLeaf(Offset(x + sway * 2 + 20f, y - 50f), 20f, stemColor)
-    drawLeaf(Offset(x + sway * 2, y - 80f), 15f, stemColor)
-}
+    // 1. Etapa MUERTA (máxima prioridad, nunca tiene plaga)
+    if (stage == PlantStage.MUERTA) return R.drawable.dead
 
-private fun DrawScope.drawYoungPlant(x: Float, y: Float, health: Float, sway: Float, plantType: PlantType) {
-    val stemColor = getPlantColor(health)
-    
-    // Tallo principal
-    drawLine(
-        color = stemColor,
-        start = Offset(x, y),
-        end = Offset(x + sway * 2, y - 120f),
-        strokeWidth = 8f
-    )
-    
-    // Hojas medianas
-    val leafPositions = listOf(
-        Offset(x + sway * 2 - 30f, y - 40f),
-        Offset(x + sway * 2 + 30f, y - 60f),
-        Offset(x + sway * 2 - 25f, y - 80f),
-        Offset(x + sway * 2 + 25f, y - 100f)
-    )
-    
-    leafPositions.forEach { pos ->
-        drawLeaf(pos, 25f, stemColor)
+    // 2. Lógica de Plagas (segunda prioridad)
+    // Si hay plaga, mostramos la imagen con plaga e ignoramos la salud (isSad)
+    // Asumimos que tienes drawables como: germination_bug, b_seed_bug, b_mature_bug, etc.
+    if (hasPest) {
+        return when (stage) {
+            // Generales con plaga
+            PlantStage.GERMINACION -> R.drawable.germination_bug
+            PlantStage.PLANTULA -> R.drawable.seedling_bug
+            PlantStage.JOVEN -> R.drawable.young_bug
+
+            // Específicas (por tipo) con plaga
+            PlantStage.SEMILLA -> when (plantType) {
+                PlantType.FRIJOL -> R.drawable.b_seed_bug
+                PlantType.ROSA -> R.drawable.r_seed_bug
+                PlantType.TOMATE -> R.drawable.t_seed_bug
+                PlantType.GIRASOL -> R.drawable.g_seed_bug
+                else -> R.drawable.b_seed_bug // Fallback
+            }
+            PlantStage.MADURO -> when (plantType) {
+                PlantType.FRIJOL -> R.drawable.b_mature_bug
+                PlantType.TOMATE -> R.drawable.t_mature_bug
+                PlantType.ROSA -> R.drawable.r_mature_bug
+                PlantType.GIRASOL -> R.drawable.g_mature_bug
+                else -> R.drawable.young_bug // Fallback
+            }
+            PlantStage.COSECHABLE -> when (plantType) {
+                PlantType.FRIJOL -> R.drawable.b_hervestable_bug
+                PlantType.TOMATE -> R.drawable.t_hervestable_bug
+                else -> R.drawable.young_bug // Fallback
+            }
+            PlantStage.FLORECIMIENTO -> when (plantType) {
+                PlantType.ROSA -> R.drawable.r_flowering_bug
+                PlantType.GIRASOL -> R.drawable.g_flowering_bug // (Asegúrate que exista)
+                else -> R.drawable.young_bug // Fallback
+            }
+            // 'MUERTA' ya se manejó
+            else -> R.drawable.young
+        }
+    }
+    // --- FIN DEL CAMBIO #3 ---
+
+    // 3. Lógica de Salud (isSad) - Se ejecuta SOLO si no está 'MUERTA' y no 'hasPest'
+    val isSad = health <= 30f
+
+    // 3.a. Etapas Generales (de img_general)
+    // Estas son iguales para todas las plantas.
+    when (stage) {
+        // PlantStage.MUERTA -> return R.drawable.dead // <-- MOVIDO ARRIBA
+        PlantStage.GERMINACION -> return if (isSad) R.drawable.germination_sad else R.drawable.germination
+        PlantStage.PLANTULA -> return if (isSad) R.drawable.seedling_sad else R.drawable.seedling
+        PlantStage.JOVEN -> return if (isSad) R.drawable.young_sad else R.drawable.young
+        else -> { /* No es una etapa general, continuar a lógicas específicas */ }
+    }
+
+    // 3.b. Etapas Específicas (varían por tipo de planta)
+    return when (stage) {
+        PlantStage.SEMILLA -> when (plantType) {
+            PlantType.FRIJOL -> if (isSad) R.drawable.b_seed_sad else R.drawable.b_seed
+            PlantType.ROSA -> if(isSad) R.drawable.r_seed_sad else R.drawable.r_seed
+            PlantType.TOMATE -> if(isSad) R.drawable.t_seed_sad else R.drawable.t_seed
+            PlantType.GIRASOL -> if(isSad) R.drawable.g_seed_sad else R.drawable.g_seed
+            else -> R.drawable.b_seed // Fallback para Rabano, Lechuga, etc.
+        }
+        PlantStage.MADURO -> when (plantType) {
+            PlantType.FRIJOL -> if (isSad) R.drawable.b_mature_sad else R.drawable.b_mature
+            PlantType.TOMATE -> if (isSad) R.drawable.t_mature_sad else R.drawable.t_mature
+            PlantType.ROSA -> if (isSad) R.drawable.r_mature_sad else R.drawable.r_mature
+            PlantType.GIRASOL -> if (isSad) R.drawable.g_mature_sad else R.drawable.g_mature
+            PlantType.ROSA -> if (isSad) R.drawable.r_mature_sad else R.drawable.r_mature
+            else -> if (isSad) R.drawable.young_sad else R.drawable.young // Fallback
+        }
+        PlantStage.COSECHABLE -> when (plantType) {
+            PlantType.FRIJOL -> if (isSad) R.drawable.b_hervestable_sad else R.drawable.b_hervestable
+            PlantType.TOMATE -> if (isSad) R.drawable.t_hervestable_sad else R.drawable.t_hervestable
+            PlantType.GIRASOL -> if (isSad) R.drawable.g_fh_sad else R.drawable.g_hervesrable // Caso especial Girasol Sad
+            else -> if (isSad) R.drawable.young_sad else R.drawable.young // Fallback
+        }
+        PlantStage.FLORECIMIENTO -> when (plantType) {
+            PlantType.ROSA -> if (isSad) R.drawable.r_flowering_sad else R.drawable.r_flowering
+            PlantType.GIRASOL -> if (isSad) R.drawable.g_fh_sad else R.drawable.g_flowering // Caso especial Girasol Sad
+            else -> if (isSad) R.drawable.young_sad else R.drawable.young // Fallback
+        }
+        // Fallback general si alguna combinación no se encuentra
+        else -> if (isSad) R.drawable.young_sad else R.drawable.young
     }
 }
 
-private fun DrawScope.drawMaturePlant(x: Float, y: Float, health: Float, sway: Float, plantType: PlantType) {
-    val stemColor = getPlantColor(health)
-    
-    // Tallo principal
-    drawLine(
-        color = stemColor,
-        start = Offset(x, y),
-        end = Offset(x + sway * 2, y - 150f),
-        strokeWidth = 10f
-    )
-    
-    // Hojas grandes
-    val leafPositions = listOf(
-        Offset(x + sway * 2 - 40f, y - 50f),
-        Offset(x + sway * 2 + 40f, y - 70f),
-        Offset(x + sway * 2 - 35f, y - 90f),
-        Offset(x + sway * 2 + 35f, y - 110f),
-        Offset(x + sway * 2 - 30f, y - 130f),
-        Offset(x + sway * 2 + 30f, y - 140f)
-    )
-    
-    leafPositions.forEach { pos ->
-        drawLeaf(pos, 30f, stemColor)
-    }
-}
-
-private fun DrawScope.drawHarvestablePlant(x: Float, y: Float, health: Float, sway: Float, plantType: PlantType) {
-    val stemColor = getPlantColor(health)
-    val fruitColor = getFruitColor(plantType)
-    
-    // Tallo principal
-    drawLine(
-        color = stemColor,
-        start = Offset(x, y),
-        end = Offset(x + sway * 2, y - 160f),
-        strokeWidth = 12f
-    )
-    
-    // Hojas
-    val leafPositions = listOf(
-        Offset(x + sway * 2 - 40f, y - 60f),
-        Offset(x + sway * 2 + 40f, y - 80f),
-        Offset(x + sway * 2 - 35f, y - 100f),
-        Offset(x + sway * 2 + 35f, y - 120f)
-    )
-    
-    leafPositions.forEach { pos ->
-        drawLeaf(pos, 30f, stemColor)
-    }
-    
-    // Frutos/Vegetales
-    val fruitPositions = listOf(
-        Offset(x + sway * 2 - 20f, y - 140f),
-        Offset(x + sway * 2 + 20f, y - 150f),
-        Offset(x + sway * 2, y - 160f)
-    )
-    
-    fruitPositions.forEach { pos ->
-        drawCircle(
-            color = fruitColor,
-            radius = 15f,
-            center = pos
-        )
-        // Brillo en el fruto
-        drawCircle(
-            color = Color.White.copy(alpha = 0.3f),
-            radius = 5f,
-            center = Offset(pos.x - 5f, pos.y - 5f)
-        )
-    }
-}
-
-private fun DrawScope.drawFloweringPlant(x: Float, y: Float, health: Float, sway: Float, plantType: PlantType) {
-    val stemColor = getPlantColor(health)
-    val flowerColor = getFlowerColor(plantType)
-    
-    // Tallo principal
-    drawLine(
-        color = stemColor,
-        start = Offset(x, y),
-        end = Offset(x + sway * 2, y - 150f),
-        strokeWidth = 10f
-    )
-    
-    // Hojas
-    val leafPositions = listOf(
-        Offset(x + sway * 2 - 35f, y - 50f),
-        Offset(x + sway * 2 + 35f, y - 70f),
-        Offset(x + sway * 2 - 30f, y - 90f),
-        Offset(x + sway * 2 + 30f, y - 110f)
-    )
-    
-    leafPositions.forEach { pos ->
-        drawLeaf(pos, 28f, stemColor)
-    }
-    
-    // Flor en la parte superior
-    drawFlower(Offset(x + sway * 2, y - 150f), 40f, flowerColor)
-}
-
-private fun DrawScope.drawDeadPlant(x: Float, y: Float) {
-    val deadColor = Color.Gray.copy(alpha = 0.5f)
-    
-    // Tallo muerto caído
-    drawLine(
-        color = deadColor,
-        start = Offset(x, y),
-        end = Offset(x + 60f, y - 30f),
-        strokeWidth = 8f
-    )
-    
-    // Hojas marchitas
-    drawCircle(
-        color = deadColor,
-        radius = 15f,
-        center = Offset(x + 40f, y - 20f)
-    )
-    drawCircle(
-        color = deadColor,
-        radius = 12f,
-        center = Offset(x + 60f, y - 30f)
-    )
-}
-
-private fun DrawScope.drawLeaf(center: Offset, size: Float, color: Color) {
-    val path = Path().apply {
-        moveTo(center.x, center.y - size / 2)
-        cubicTo(
-            center.x + size / 2, center.y - size / 4,
-            center.x + size / 2, center.y + size / 4,
-            center.x, center.y + size / 2
-        )
-        cubicTo(
-            center.x - size / 2, center.y + size / 4,
-            center.x - size / 2, center.y - size / 4,
-            center.x, center.y - size / 2
-        )
-        close()
-    }
-    drawPath(path, color = color)
-    
-    // Vena de la hoja
-    drawLine(
-        color = color.copy(alpha = 0.5f),
-        start = Offset(center.x, center.y - size / 2),
-        end = Offset(center.x, center.y + size / 2),
-        strokeWidth = 2f
-    )
-}
-
-private fun DrawScope.drawFlower(center: Offset, size: Float, color: Color) {
-    // Pétalos
-    val petalCount = 6
-    val angleStep = 360f / petalCount
-    
-    for (i in 0 until petalCount) {
-        val angle = Math.toRadians((angleStep * i).toDouble())
-        val petalX = center.x + (size / 2 * kotlin.math.cos(angle)).toFloat()
-        val petalY = center.y + (size / 2 * kotlin.math.sin(angle)).toFloat()
-        
-        drawCircle(
-            color = color,
-            radius = size / 3,
-            center = Offset(petalX, petalY)
-        )
-    }
-    
-    // Centro de la flor
-    drawCircle(
-        color = SunYellow,
-        radius = size / 4,
-        center = center
-    )
-}
-
+// --- INICIO DEL CAMBIO #4 ---
+// Esta función se mantiene sin cambios, ya que sigue usando Canvas
+// ELIMINADA
+/*
 private fun DrawScope.drawPests(x: Float, y: Float) {
     // Dibujar pequeños bichos
     for (i in 0..2) {
@@ -347,30 +190,5 @@ private fun DrawScope.drawPests(x: Float, y: Float) {
         )
     }
 }
-
-private fun getPlantColor(health: Float): Color {
-    return when {
-        health > 70f -> GreenPrimary
-        health > 40f -> GreenLight.copy(alpha = 0.8f)
-        else -> GreenDark.copy(alpha = 0.6f)
-    }
-}
-
-private fun getFruitColor(plantType: PlantType): Color {
-    return when (plantType) {
-        PlantType.FRIJOL -> Color(0xFF8B4513)
-        PlantType.RABANO -> Color(0xFFE91E63)
-        PlantType.LECHUGA -> GreenLight
-        PlantType.TOMATE -> Color(0xFFF44336)
-        else -> Color(0xFF4CAF50)
-    }
-}
-
-private fun getFlowerColor(plantType: PlantType): Color {
-    return when (plantType) {
-        PlantType.GIRASOL -> SunYellow
-        PlantType.ROSA -> Color(0xFFE91E63)
-        else -> Color(0xFFFF69B4)
-    }
-}
-
+*/
+// --- FIN DEL CAMBIO #4 ---

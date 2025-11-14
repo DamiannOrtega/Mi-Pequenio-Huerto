@@ -38,7 +38,7 @@ fun PlantInfoScreen(
 ) {
     val gameState by gameViewModel.gameState.collectAsState()
     val plant = gameState.currentPlant
-    
+
     if (plant == null) {
         // Si no hay planta, volver
         LaunchedEffect(Unit) {
@@ -46,10 +46,10 @@ fun PlantInfoScreen(
         }
         return
     }
-    
+
     val plantInfo = PlantTypeData.getInfo(plant.type)
     val stageInfo = PlantStageData.getStageInfo(plant.stage, plantInfo.isHarvestable)
-    
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -65,23 +65,31 @@ fun PlantInfoScreen(
             )
         }
     ) { paddingValues ->
+
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Este Box gestiona el fondo y el padding principal del Scaffold.
+        // NO recibe el 'modifier' de la función.
         Box(
-            modifier = modifier
-                .fillMaxSize()
-                .background(
+            modifier = Modifier
+                .padding(paddingValues) // 1. Aplica el padding de la barra superior
+                .fillMaxSize()          // 2. Llena el espacio restante
+                .background(            // 3. Dibuja el fondo
                     Brush.verticalGradient(
                         colors = listOf(SkyBlue, GreenLight.copy(alpha = 0.3f))
                     )
                 )
-                .padding(paddingValues)
         ) {
+            // Esta Column interna SÍ recibe el 'modifier'
+            // y gestiona el contenido y el scroll.
             Column(
-                modifier = Modifier
+                modifier = modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // --- FIN DE LA CORRECCIÓN ---
+
                 // Visualización de la planta
                 Card(
                     modifier = Modifier
@@ -105,9 +113,9 @@ fun PlantInfoScreen(
                         )
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 // Estado actual
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -128,9 +136,9 @@ fun PlantInfoScreen(
                             fontWeight = FontWeight.Bold,
                             color = GreenDark
                         )
-                        
+
                         Spacer(modifier = Modifier.height(16.dp))
-                        
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -148,7 +156,7 @@ fun PlantInfoScreen(
                                     color = GreenPrimary
                                 )
                             }
-                            
+
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
                                     text = "Edad",
@@ -163,24 +171,24 @@ fun PlantInfoScreen(
                                 )
                             }
                         }
-                        
+
                         Spacer(modifier = Modifier.height(16.dp))
-                        
+
                         HealthBar(
                             health = plant.health,
                             modifier = Modifier.fillMaxWidth()
                         )
-                        
+
                         Spacer(modifier = Modifier.height(12.dp))
-                        
+
                         WaterBar(
                             waterLevel = plant.waterLevel,
                             modifier = Modifier.fillMaxWidth()
                         )
-                        
+
                         if (plant.hasPest) {
                             Spacer(modifier = Modifier.height(12.dp))
-                            
+
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(8.dp),
@@ -206,18 +214,18 @@ fun PlantInfoScreen(
                         }
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 // Información de la planta
                 PlantInfoCard(
                     plantName = plantInfo.name,
                     description = plantInfo.detailedDescription,
                     icon = Icons.Default.Info
                 )
-                
+
                 Spacer(modifier = Modifier.height(12.dp))
-                
+
                 // Cuidados
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -249,17 +257,17 @@ fun PlantInfoScreen(
                                 color = GreenDark
                             )
                         }
-                        
+
                         Spacer(modifier = Modifier.height(16.dp))
-                        
+
                         CareItem(
                             icon = Icons.Default.Water,
                             title = "Último riego",
                             value = formatTimeAgo(plant.lastWatered)
                         )
-                        
+
                         Spacer(modifier = Modifier.height(12.dp))
-                        
+
                         if (plant.lastFertilized != null) {
                             CareItem(
                                 icon = Icons.Default.Grass,
@@ -273,9 +281,9 @@ fun PlantInfoScreen(
                                 value = "Nunca aplicado"
                             )
                         }
-                        
+
                         Spacer(modifier = Modifier.height(12.dp))
-                        
+
                         CareItem(
                             icon = Icons.Default.Schedule,
                             title = "Consumo de agua",
@@ -283,9 +291,9 @@ fun PlantInfoScreen(
                         )
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(12.dp))
-                
+
                 // Etapas de crecimiento
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -317,13 +325,13 @@ fun PlantInfoScreen(
                                 color = GreenDark
                             )
                         }
-                        
+
                         Spacer(modifier = Modifier.height(16.dp))
-                        
+
                         val stages = PlantStageData.getStagesForPlant(plantInfo.isHarvestable)
                         stages.forEach { stage ->
                             val isCurrentStage = stage.stage == plant.stage
-                            
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -341,7 +349,7 @@ fun PlantInfoScreen(
                                         tint = if (isCurrentStage) GreenPrimary else Color.LightGray,
                                         modifier = Modifier.size(24.dp)
                                     )
-                                    
+
                                     Column {
                                         Text(
                                             text = stage.name,
@@ -392,7 +400,7 @@ fun CareItem(
                 color = Color.Gray
             )
         }
-        
+
         Text(
             text = value,
             fontSize = 14.sp,
@@ -405,7 +413,7 @@ fun CareItem(
 fun formatDuration(millis: Long): String {
     val hours = TimeUnit.MILLISECONDS.toHours(millis)
     val minutes = TimeUnit.MILLISECONDS.toMinutes(millis) % 60
-    
+
     return when {
         hours > 0 -> "${hours}h ${minutes}m"
         minutes > 0 -> "${minutes}m"
@@ -418,7 +426,7 @@ fun formatTimeAgo(timestamp: Long): String {
     val minutes = TimeUnit.MILLISECONDS.toMinutes(diff)
     val hours = TimeUnit.MILLISECONDS.toHours(diff)
     val days = TimeUnit.MILLISECONDS.toDays(diff)
-    
+
     return when {
         days > 0 -> "Hace ${days}d"
         hours > 0 -> "Hace ${hours}h"
@@ -466,9 +474,9 @@ fun PlantInfoCard(
                     color = GreenDark
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             // Parsear y mostrar el contenido con formato
             val lines = description.split("\n")
             lines.forEach { line ->
@@ -528,4 +536,3 @@ fun PlantInfoCard(
         }
     }
 }
-

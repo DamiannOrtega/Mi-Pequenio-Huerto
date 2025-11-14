@@ -12,13 +12,13 @@ data class GameState(
     val points: Int = 0,
     val unlockedPlants: List<PlantType> = listOf(
         PlantType.FRIJOL,
-        PlantType.RABANO,
-        PlantType.LECHUGA
+        /*PlantType.RABANO,
+        PlantType.LECHUGA*/
     ),
     val ownedSeeds: Map<PlantType, Int> = mapOf(
         PlantType.FRIJOL to 3,
-        PlantType.RABANO to 1,
-        PlantType.LECHUGA to 1
+        /*PlantType.RABANO to 1,
+        PlantType.LECHUGA to 1*/
     ),
     val fertilizers: Int = 0,
     val pesticides: Int = 0,

@@ -6,8 +6,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class PlantType {
     FRIJOL,      // Bean
-    RABANO,      // Radish
-    LECHUGA,     // Lettuce
+    // RABANO,   <-- ELIMINADO
+    // LECHUGA,  <-- ELIMINADO
     GIRASOL,     // Sunflower (futuro)
     ROSA,        // Rose (futuro)
     TOMATE       // Tomato (futuro)
@@ -46,44 +46,8 @@ object PlantTypeData {
             basePrice = 0, // Gratis al inicio
             harvestPoints = 50
         ),
-        PlantType.RABANO to PlantTypeInfo(
-            type = PlantType.RABANO,
-            name = "Rábano",
-            description = "Crece rápido y es fácil de cuidar",
-            detailedDescription = "🥕 **¡El más rápido del huerto!**\n\n" +
-                    "**¿Sabías que?** Los rábanos son los campeones de velocidad. ¡Solo necesitan 7 días para estar listos!\n\n" +
-                    "**Características especiales:**\n" +
-                    "• ⚡ Es el más rápido en crecer\n" +
-                    "• 🔴 Su raíz es roja y crujiente\n" +
-                    "• 💧 Le gusta el agua regular\n" +
-                    "• 🥗 Perfecto para ensaladas\n" +
-                    "• 🌱 Sus hojas también se pueden comer\n\n" +
-                    "**¡Dato curioso!** Los rábanos son como pequeños cohetes que crecen hacia abajo en la tierra. ¡Pum!",
-            growthDuration = DebugConfig.getAdjustedDuration(7 * 60 * 60 * 1000L), // 7 horas en producción, 7 min en debug
-            isHarvestable = true,
-            waterConsumptionRate = 6f * DebugConfig.TIME_MULTIPLIER,
-            basePrice = 20,
-            harvestPoints = 40
-        ),
-        PlantType.LECHUGA to PlantTypeInfo(
-            type = PlantType.LECHUGA,
-            name = "Lechuga",
-            description = "Una verdura fresca y saludable",
-            detailedDescription = "🥬 **¡La reina de las ensaladas!**\n\n" +
-                    "**¿Sabías que?** La lechuga es como una rosa de hojas verdes que se abre poco a poco. ¡Es súper fresca!\n\n" +
-                    "**Características especiales:**\n" +
-                    "• 🥬 Sus hojas son grandes y suaves\n" +
-                    "• 💚 Verde como la hierba del jardín\n" +
-                    "• 💧 Le gusta mucho el agua\n" +
-                    "• 🥗 Es la base de todas las ensaladas\n" +
-                    "• 🌱 Crece en capas como un acordeón\n\n" +
-                    "**¡Dato curioso!** La lechuga tiene 95% de agua, ¡casi es agua con forma de planta!",
-            growthDuration = DebugConfig.getAdjustedDuration(12 * 60 * 60 * 1000L), // 12 horas en producción, 12 min en debug
-            isHarvestable = true,
-            waterConsumptionRate = 7f * DebugConfig.TIME_MULTIPLIER,
-            basePrice = 30,
-            harvestPoints = 60
-        ),
+        // PlantType.RABANO to PlantTypeInfo(...)  <-- BLOQUE ELIMINADO
+        // PlantType.LECHUGA to PlantTypeInfo(...) <-- BLOQUE ELIMINADO
         PlantType.GIRASOL to PlantTypeInfo(
             type = PlantType.GIRASOL,
             name = "Girasol",
@@ -142,21 +106,20 @@ object PlantTypeData {
             harvestPoints = 70
         )
     )
-    
+
     fun getInfo(type: PlantType): PlantTypeInfo {
         return plantInfoMap[type] ?: plantInfoMap[PlantType.FRIJOL]!!
     }
-    
+
     fun getAllPlants(): List<PlantTypeInfo> {
         return plantInfoMap.values.toList()
     }
-    
+
     fun getInitialPlants(): List<PlantTypeInfo> {
         return listOf(
-            getInfo(PlantType.FRIJOL),
-            getInfo(PlantType.RABANO),
-            getInfo(PlantType.LECHUGA)
+            getInfo(PlantType.FRIJOL)
+            // getInfo(PlantType.RABANO), <-- ELIMINADO
+            // getInfo(PlantType.LECHUGA)  <-- ELIMINADO
         )
     }
 }
-

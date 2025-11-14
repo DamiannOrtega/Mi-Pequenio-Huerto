@@ -2,6 +2,7 @@ package com.example.miprimerhuerto.ui.components
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image // <-- AÑADIDO
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,9 +20,12 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale // <-- AÑADIDO
+import androidx.compose.ui.res.painterResource // <-- AÑADIDO
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.miprimerhuerto.R // <-- AÑADIDO (¡Confirma que esta es tu ruta de paquete!)
 import com.example.miprimerhuerto.ui.theme.*
 
 @Composable
@@ -43,7 +47,7 @@ fun ActionButton(
         ),
         label = "scale"
     )
-    
+
     Column(
         modifier = modifier
             .scale(scale)
@@ -75,9 +79,9 @@ fun ActionButton(
                 modifier = Modifier.size(32.dp)
             )
         }
-        
+
         Spacer(modifier = Modifier.height(4.dp))
-        
+
         Text(
             text = label,
             fontSize = 12.sp,
@@ -85,7 +89,7 @@ fun ActionButton(
             fontWeight = FontWeight.Medium
         )
     }
-    
+
     LaunchedEffect(pressed) {
         if (pressed) {
             kotlinx.coroutines.delay(100)
@@ -108,7 +112,7 @@ fun ToolButton(
         targetValue = if (pressed) 0.9f else 1f,
         label = "scale"
     )
-    
+
     Box(
         modifier = modifier
             .scale(scale)
@@ -134,7 +138,7 @@ fun ToolButton(
                 modifier = Modifier.size(32.dp)
             )
         }
-        
+
         // Badge con contador
         if (count != null && count > 0) {
             Box(
@@ -155,7 +159,7 @@ fun ToolButton(
             }
         }
     }
-    
+
     LaunchedEffect(pressed) {
         if (pressed) {
             kotlinx.coroutines.delay(100)
@@ -276,7 +280,7 @@ fun InfoCard(
                     modifier = Modifier.size(40.dp)
                 )
             }
-            
+
             Column(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
@@ -299,53 +303,25 @@ fun InfoCard(
 @Composable
 fun PlantPot(
     modifier: Modifier = Modifier,
-    hasPlant: Boolean = false
+    hasPlant: Boolean = false // Ahora este parámetro controla la visibilidad
 ) {
     Box(
         modifier = modifier
-            .size(250.dp),
+            .size(250.dp), // Se mantiene el Box exterior
         contentAlignment = Alignment.BottomCenter
     ) {
-        androidx.compose.foundation.Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(100.dp)
-        ) {
-            // Maceta
-            val potPath = androidx.compose.ui.graphics.Path().apply {
-                moveTo(size.width * 0.3f, 0f)
-                lineTo(size.width * 0.2f, size.height)
-                lineTo(size.width * 0.8f, size.height)
-                lineTo(size.width * 0.7f, 0f)
-                close()
-            }
-            
-            drawPath(
-                path = potPath,
-                color = BrownPrimary
-            )
-            
-            // Borde de la maceta
-            drawPath(
-                path = potPath,
-                color = BrownDark,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f)
-            )
-            
-            // Tierra
-            val soilPath = androidx.compose.ui.graphics.Path().apply {
-                moveTo(size.width * 0.3f, 0f)
-                lineTo(size.width * 0.7f, 0f)
-                lineTo(size.width * 0.65f, size.height * 0.3f)
-                lineTo(size.width * 0.35f, size.height * 0.3f)
-                close()
-            }
-            
-            drawPath(
-                path = soilPath,
-                color = BrownDark
+        // --- INICIO DEL CAMBIO ---
+        // Solo muestra la imagen de la maceta si hasPlant es 'false'
+        if (!hasPlant) {
+            Image(
+                painter = painterResource(id = R.drawable.maceta),
+                contentDescription = "Maceta",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp),
+                contentScale = ContentScale.Fit
             )
         }
+        // --- FIN DEL CAMBIO ---
     }
 }
-

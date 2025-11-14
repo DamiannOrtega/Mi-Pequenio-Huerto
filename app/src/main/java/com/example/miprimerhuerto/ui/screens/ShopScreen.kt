@@ -1,5 +1,11 @@
 package com.example.miprimerhuerto.ui.screens
 
+// --- IMPORTS AÑADIDOS PARA EL AUDIO SFX ---
+import android.media.MediaPlayer
+import androidx.compose.ui.platform.LocalContext
+import com.example.miprimerhuerto.R
+// ------------------------------------------
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,7 +40,35 @@ fun ShopScreen(
     val gameState by gameViewModel.gameState.collectAsState()
     val uiEvent by gameViewModel.uiEvent.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    
+
+    // --- AÑADIDO: Leemos el estado de la música/sonido desde el ViewModel ---
+    val isSoundOn by gameViewModel.isMusicOn.collectAsState() // Reutilizamos el mismo interruptor
+
+    // --- AÑADIDO: Creamos el MediaPlayer para el sonido de compra ---
+    val context = LocalContext.current
+    val buySoundPlayer = remember {
+        // Asegúrate de que tu archivo se llame 'buy_sound.mp3' en 'res/raw/'
+        MediaPlayer.create(context, R.raw.buy_sound)
+    }
+
+    // --- AÑADIDO: Nos aseguramos de liberar el MediaPlayer cuando la pantalla se destruye ---
+    DisposableEffect(Unit) {
+        onDispose {
+            buySoundPlayer.release()
+        }
+    }
+
+    // --- AÑADIDO: Función helper para reproducir el sonido ---
+    val playBuySound = {
+        if (isSoundOn) {
+            // Si ya está sonando, lo rebobinamos y lo volvemos a sonar (para clics rápidos)
+            if(buySoundPlayer.isPlaying) {
+                buySoundPlayer.seekTo(0)
+            }
+            buySoundPlayer.start()
+        }
+    }
+
     LaunchedEffect(uiEvent) {
         when (val event = uiEvent) {
             is UiEvent.SeedPurchased -> {
@@ -53,7 +87,7 @@ fun ShopScreen(
             else -> {}
         }
     }
-    
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -88,9 +122,9 @@ fun ShopScreen(
                 StatsDisplay(
                     points = gameState.points
                 )
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -100,22 +134,24 @@ fun ShopScreen(
                             text = "Semillas",
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold,
-                            color = GreenDark,
+                            color = Color.White,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
-                    
+
                     items(PlantTypeData.getAllPlants()) { plantInfo ->
                         SeedShopItem(
                             plantInfo = plantInfo,
                             owned = gameState.ownedSeeds[plantInfo.type] ?: 0,
                             canAfford = gameState.points >= plantInfo.basePrice,
                             onBuy = {
+                                // --- MODIFICADO: Añadimos el sonido ---
+                                playBuySound()
                                 gameViewModel.buySeed(plantInfo.type)
                             }
                         )
                     }
-                    
+
                     // Sección de herramientas
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
@@ -123,11 +159,11 @@ fun ShopScreen(
                             text = "Herramientas",
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold,
-                            color = GreenDark,
+                            color = Color.White,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
-                    
+
                     item {
                         ToolShopItem(
                             icon = Icons.Default.Grass,
@@ -136,10 +172,14 @@ fun ShopScreen(
                             price = GameState.FERTILIZER_COST,
                             owned = gameState.fertilizers,
                             canAfford = gameState.points >= GameState.FERTILIZER_COST,
-                            onBuy = { gameViewModel.buyFertilizer() }
+                            onBuy = {
+                                // --- MODIFICADO: Añadimos el sonido ---
+                                playBuySound()
+                                gameViewModel.buyFertilizer()
+                            }
                         )
                     }
-                    
+
                     item {
                         ToolShopItem(
                             icon = Icons.Default.BugReport,
@@ -148,10 +188,14 @@ fun ShopScreen(
                             price = GameState.PESTICIDE_COST,
                             owned = gameState.pesticides,
                             canAfford = gameState.points >= GameState.PESTICIDE_COST,
-                            onBuy = { gameViewModel.buyPesticide() }
+                            onBuy = {
+                                // --- MODIFICADO: Añadimos el sonido ---
+                                playBuySound()
+                                gameViewModel.buyPesticide()
+                            }
                         )
                     }
-                    
+
                     // Sección de macetas
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
@@ -159,15 +203,19 @@ fun ShopScreen(
                             text = "Macetas",
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold,
-                            color = GreenDark,
+                            color = Color.White,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
-                    
+
                     item {
                         PlantPotShopItem(
                             gameState = gameState,
-                            onBuy = { gameViewModel.buyPlantPot() }
+                            onBuy = {
+                                // --- MODIFICADO: Añadimos el sonido ---
+                                playBuySound()
+                                gameViewModel.buyPlantPot()
+                            }
                         )
                     }
                 }
@@ -176,12 +224,13 @@ fun ShopScreen(
     }
 }
 
+
 @Composable
 fun SeedShopItem(
     plantInfo: com.example.miprimerhuerto.data.model.PlantTypeInfo,
     owned: Int,
     canAfford: Boolean,
-    onBuy: () -> Unit
+    onBuy: () -> Unit // No cambiamos la firma, la lógica se añade arriba
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -211,7 +260,7 @@ fun SeedShopItem(
                         fontWeight = FontWeight.Bold,
                         color = GreenDark
                     )
-                    
+
                     if (owned > 0) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
@@ -227,17 +276,17 @@ fun SeedShopItem(
                         }
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(4.dp))
-                
+
                 Text(
                     text = plantInfo.description,
                     fontSize = 14.sp,
                     color = Color.Gray
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -253,9 +302,9 @@ fun SeedShopItem(
                         fontSize = 12.sp,
                         color = Color.Gray
                     )
-                    
+
                     Spacer(modifier = Modifier.width(8.dp))
-                    
+
                     Icon(
                         imageVector = Icons.Default.Star,
                         contentDescription = "Puntos",
@@ -269,24 +318,25 @@ fun SeedShopItem(
                     )
                 }
             }
-            
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (plantInfo.basePrice == 0) {
-                    // Semilla gratis (inicial)
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = GreenLight.copy(alpha = 0.3f)
-                    ) {
-                        Text(
-                            text = "🎁 Inicial",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GreenPrimary,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    Button(
+                        onClick = onBuy, // onBuy ya contiene el sonido y la lógica del ViewModel
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GreenPrimary
                         )
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Obtener",
+                            modifier = Modifier.size(ButtonDefaults.IconSize)
+                        )
+                        Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                        Text("Obtener")
                     }
                 } else {
                     Row(
@@ -306,9 +356,9 @@ fun SeedShopItem(
                             color = if (canAfford) GreenPrimary else Color.Red
                         )
                     }
-                    
+
                     Button(
-                        onClick = onBuy,
+                        onClick = onBuy, // onBuy ya contiene el sonido y la lógica del ViewModel
                         enabled = canAfford,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = GreenPrimary
@@ -330,7 +380,7 @@ fun ToolShopItem(
     price: Int,
     owned: Int,
     canAfford: Boolean,
-    onBuy: () -> Unit
+    onBuy: () -> Unit // No cambiamos la firma, la lógica se añade arriba
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -369,7 +419,7 @@ fun ToolShopItem(
                         )
                     }
                 }
-                
+
                 Column {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -381,7 +431,7 @@ fun ToolShopItem(
                             fontWeight = FontWeight.Bold,
                             color = GreenDark
                         )
-                        
+
                         if (owned > 0) {
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
@@ -397,7 +447,7 @@ fun ToolShopItem(
                             }
                         }
                     }
-                    
+
                     Text(
                         text = description,
                         fontSize = 14.sp,
@@ -405,7 +455,7 @@ fun ToolShopItem(
                     )
                 }
             }
-            
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -427,9 +477,9 @@ fun ToolShopItem(
                         color = if (canAfford) GreenPrimary else Color.Red
                     )
                 }
-                
+
                 Button(
-                    onClick = onBuy,
+                    onClick = onBuy, // onBuy ya contiene el sonido y la lógica del ViewModel
                     enabled = canAfford,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = GreenPrimary
@@ -449,7 +499,7 @@ fun PlantPotShopItem(
 ) {
     val canBuy = gameState.canBuyPlantPot()
     val maxReached = gameState.plantPots.size >= com.example.miprimerhuerto.data.model.PlantPot.MAX_POTS
-    
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -462,70 +512,73 @@ fun PlantPotShopItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            // Estructura de 3 hijos principales
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+
+            // HIJO 1: El Icono (Sin cambios)
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = GreenLight.copy(alpha = 0.2f),
+                modifier = Modifier.size(50.dp)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = GreenLight.copy(alpha = 0.2f),
-                    modifier = Modifier.size(50.dp)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.LocalFlorist,
-                            contentDescription = "Maceta",
-                            tint = GreenPrimary,
-                            modifier = Modifier.size(30.dp)
-                        )
-                    }
-                }
-                
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "Nueva Maceta",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GreenDark
-                        )
-                        
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = GreenLight.copy(alpha = 0.3f)
-                        ) {
-                            Text(
-                                text = "${gameState.plantPots.size}/${com.example.miprimerhuerto.data.model.PlantPot.MAX_POTS}",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = GreenPrimary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-                    
-                    Text(
-                        text = if (maxReached) {
-                            "¡Has alcanzado el máximo de macetas!"
-                        } else {
-                            "Desbloquea un nuevo espacio para plantar"
-                        },
-                        fontSize = 14.sp,
-                        color = if (maxReached) Color.Red else Color.Gray
+                    Icon(
+                        imageVector = Icons.Default.LocalFlorist,
+                        contentDescription = "Maceta",
+                        tint = GreenPrimary,
+                        modifier = Modifier.size(30.dp)
                     )
                 }
             }
-            
+
+            // HIJO 2: La Columna de Texto (con el peso)
+            Column(
+                modifier = Modifier.weight(1f), // <-- El peso hace que se expanda
+                // Usamos spacedBy para dar espacio vertical entre los 3 elementos
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+
+                // 1. El Título (ahora solo)
+                Text(
+                    text = "Nueva Maceta",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GreenDark
+                )
+
+                // 2. El Contador (ahora debajo del título)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = GreenLight.copy(alpha = 0.3f)
+                    // Ya no se "apachurra" porque está en su propia línea
+                ) {
+                    Text(
+                        text = "${gameState.plantPots.size}/${com.example.miprimerhuerto.data.model.PlantPot.MAX_POTS}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GreenPrimary,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+
+                // 3. La Descripción (queda al final)
+                Text(
+                    text = if (maxReached) {
+                        "¡Has alcanzado el máximo de macetas!"
+                    } else {
+                        "Desbloquea un nuevo espacio para plantar"
+                    },
+                    fontSize = 14.sp,
+                    color = if (maxReached) Color.Red else Color.Gray
+                )
+            }
+
+            // HIJO 3: La Columna del Botón (Sin cambios)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -548,7 +601,7 @@ fun PlantPotShopItem(
                             color = if (canBuy) GreenPrimary else Color.Red
                         )
                     }
-                    
+
                     Button(
                         onClick = onBuy,
                         enabled = canBuy,
@@ -576,4 +629,3 @@ fun PlantPotShopItem(
         }
     }
 }
-

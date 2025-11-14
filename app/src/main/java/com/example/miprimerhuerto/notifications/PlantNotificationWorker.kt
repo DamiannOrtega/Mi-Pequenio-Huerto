@@ -129,6 +129,66 @@ class PlantNotificationWorker(
                 e.printStackTrace()
             }
         }
+
+        /**
+         * Envía una notificación de plaga directamente
+         */
+        fun sendPestNotification(context: Context, plantName: String) {
+            try {
+                com.example.miprimerhuerto.utils.DebugConfig.log("Enviando notificación de plaga...")
+
+                // 1. Título y mensaje específicos
+                val title = "🐛 ¡Plaga detectada!"
+                val message = "¡Tu $plantName tiene una plaga! ¡Elimínala rápido!"
+
+                val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+                // 2. Crear canal (esto es igual)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val channel = NotificationChannel(
+                        CHANNEL_ID,
+                        "Notificaciones de Plantas",
+                        NotificationManager.IMPORTANCE_HIGH
+                    ).apply {
+                        description = "Notificaciones sobre el estado de tus plantas"
+                        enableVibration(true)
+                        enableLights(true)
+                    }
+                    notificationManager.createNotificationChannel(channel)
+                }
+
+                // 3. Intent (esto es igual)
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                }
+
+                val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    0,
+                    intent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+
+                // 4. Construir la notificación
+                val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_launcher_foreground) // Asegúrate que este ícono exista
+                    .setContentTitle(title)
+                    .setContentText(message)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setContentIntent(pendingIntent)
+                    .setAutoCancel(true)
+                    .setVibrate(longArrayOf(0, 500, 200, 500)) // Un patrón de vibración diferente
+                    .build()
+
+                // 5. Usar un ID de notificación DIFERENTE
+                notificationManager.notify(1004, notification) // Usamos 1004 (plagas) en lugar de 1002 (etapa)
+
+                com.example.miprimerhuerto.utils.DebugConfig.log("✅ Notificación de plaga enviada!")
+            } catch (e: Exception) {
+                com.example.miprimerhuerto.utils.DebugConfig.log("❌ Error en notificación de plaga: ${e.message}")
+                e.printStackTrace()
+            }
+        }
     }
     
     override suspend fun doWork(): Result {
