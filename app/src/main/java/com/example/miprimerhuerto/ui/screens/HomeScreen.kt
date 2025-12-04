@@ -1,0 +1,1054 @@
+package com.example.miprimerhuerto.ui.screens
+
+// --- IMPORTS ORIGINALES ---
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.miprimerhuerto.data.model.*
+import com.example.miprimerhuerto.ui.components.*
+import com.example.miprimerhuerto.sensors.ShakeSensor
+import com.example.miprimerhuerto.ui.theme.*
+import com.example.miprimerhuerto.ui.viewmodel.GameViewModel
+import com.example.miprimerhuerto.ui.viewmodel.UiEvent
+import com.example.miprimerhuerto.utils.DebugConfig
+import com.example.miprimerhuerto.utils.getBackgroundForTime
+import java.util.*
+
+// --- IMPORTS AÑADIDOS PARA EL AUDIO ---
+import android.media.MediaPlayer
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.example.miprimerhuerto.R
+// -------------------------------------
+
+
+fun getGreeting(): String {
+    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    return when (hour) {
+        in 5..11 -> "Buenos días"
+        in 12..19 -> "Buenas tardes"
+        else -> "Buenas noches"
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeScreen(
+    onNavigateToShop: () -> Unit,
+    onNavigateToPlantInfo: () -> Unit,
+    gameViewModel: GameViewModel,
+    modifier: Modifier = Modifier
+) {
+    val gameState by gameViewModel.gameState.collectAsState()
+    val uiEvent by gameViewModel.uiEvent.collectAsState()
+    val isMusicOn by gameViewModel.isMusicOn.collectAsState() // Leemos el estado de silencio
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    var showPlantDialog by remember { mutableStateOf(false) }
+    var showHarvestDialog by remember { mutableStateOf(false) }
+    var selectedPotId by remember { mutableStateOf(0) }
+
+    // --- INICIO CÓDIGO DE AUDIO (MÚSICA DE FONDO) ---
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val backgroundMusicPlayer = remember {
+        MediaPlayer.create(context, R.raw.background_music).apply {
+            isLooping = true
+        }
+    }
+
+    LaunchedEffect(isMusicOn) {
+        if (isMusicOn) {
+            if (!backgroundMusicPlayer.isPlaying) backgroundMusicPlayer.start()
+        } else {
+            if (backgroundMusicPlayer.isPlaying) backgroundMusicPlayer.pause()
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    if (isMusicOn && !backgroundMusicPlayer.isPlaying) backgroundMusicPlayer.start()
+                }
+                Lifecycle.Event.ON_STOP -> {
+                    if (backgroundMusicPlayer.isPlaying) backgroundMusicPlayer.pause()
+                }
+                else -> {}
+            }
+        }
+        if (isMusicOn) backgroundMusicPlayer.start()
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            backgroundMusicPlayer.stop()
+            backgroundMusicPlayer.release()
+        }
+    }
+    // --- FIN CÓDIGO DE AUDIO (MÚSICA DE FONDO) ---
+
+    // --- CÓDIGO DE AUDIO (SONIDO DE RIEGO) ---
+    val waterSoundPlayer = remember {
+        MediaPlayer.create(context, R.raw.water_sound)
+    }
+
+    val playWaterSound = {
+        if (isMusicOn) { // Reutilizamos el mismo interruptor de sonido
+            if (waterSoundPlayer.isPlaying) {
+                waterSoundPlayer.seekTo(0)
+            }
+            waterSoundPlayer.start()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            waterSoundPlayer.release()
+        }
+    }
+    // --- FIN CÓDIGO DE AUDIO (SONIDO DE RIEGO) ---
+
+
+    // --- INICIO DE LA CORRECCIÓN (SENSOR DE SACUDIDA) ---
+    ShakeSensor(
+        // enabled = gameState.hasPlant(), // <-- LÓGICA ANTERIOR
+        enabled = gameState.plantPots.any { it.plant != null && !it.plant.isDead() }, // <-- NUEVA LÓGICA
+        onShake = {
+            // gameViewModel.waterPlant() // <-- LÓGICA ANTERIOR
+            gameViewModel.waterAllPots() // <-- NUEVA LÓGICA
+        }
+    )
+    // --- FIN DE LA CORRECCIÓN ---
+
+    // Manejar eventos con duración extendida usando DebugConfig
+    LaunchedEffect(uiEvent) {
+        when (val event = uiEvent) {
+            is UiEvent.PlantWatered -> {
+                // Esto ahora se llamará por cada planta regada,
+                // lo cual es perfecto para el sonido de "regar todo".
+                playWaterSound()
+
+                snackbarHostState.showSnackbar(
+                    message = "🌱 ¡Planta regada! +${event.pointsEarned} puntos ⭐",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            is UiEvent.FertilizerApplied -> {
+                snackbarHostState.showSnackbar(
+                    message = "🌿 ¡Fertilizante aplicado! +${event.pointsEarned} puntos ⭐",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            is UiEvent.PestRemoved -> {
+                snackbarHostState.showSnackbar(
+                    message = "🐛 ¡Plaga eliminada! +${event.pointsEarned} puntos ⭐",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            is UiEvent.PlantHarvested -> {
+                snackbarHostState.showSnackbar(
+                    message = "🎉 ¡Cosecha exitosa! +${event.pointsEarned} puntos ⭐",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS + 2000)
+                snackbarHostState.currentSnackbarData?.dismiss()
+                showHarvestDialog = true
+            }
+            is UiEvent.SeedPlanted -> {
+                snackbarHostState.showSnackbar(
+                    message = "🌱 ¡Semilla plantada!",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            is UiEvent.PlantDied -> {
+                snackbarHostState.showSnackbar(
+                    message = "💀 Tu planta ha muerto :(",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS + 2000)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            is UiEvent.PestAppeared -> {
+                snackbarHostState.showSnackbar(
+                    message = "🐛 ¡Una plaga apareció!",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            is UiEvent.PlantReadyToHarvest -> {
+                snackbarHostState.showSnackbar(
+                    message = "🎉 ¡Tu planta está lista para cosechar!",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            is UiEvent.Overwatered -> {
+                snackbarHostState.showSnackbar(
+                    message = "⚠️ ¡CUIDADO! Estás sobreregando la planta. Está perdiendo vida 💔",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS + 2000)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            is UiEvent.StageChanged -> {
+                val stageNames = mapOf(
+                    PlantStage.SEMILLA to "Semilla",
+                    PlantStage.GERMINACION to "Germinación",
+                    PlantStage.PLANTULA to "Plántula",
+                    PlantStage.JOVEN to "Joven",
+                    PlantStage.MADURO to "Maduro",
+                    PlantStage.COSECHABLE to "Cosechable",
+                    PlantStage.FLORECIMIENTO to "Florecimiento"
+                )
+                snackbarHostState.showSnackbar(
+                    message = "🌱 ¡Tu planta creció! Ahora está en etapa: ${stageNames[event.newStage]}",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            is UiEvent.PlantPotPurchased -> {
+                snackbarHostState.showSnackbar(
+                    message = "🏺 ¡Nueva maceta desbloqueada! Puedes plantar más semillas",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            is UiEvent.OrnamentalPlantCut -> {
+                snackbarHostState.showSnackbar(
+                    message = "✂️ ¡Planta ornamental cortada! +${event.pointsEarned} puntos ⭐",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            is UiEvent.DeadPlantCleaned -> {
+                snackbarHostState.showSnackbar(
+                    message = "🧹 Planta muerta limpiada. -${event.pointsLost} puntos por descuido ⭐",
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Indefinite
+                )
+                kotlinx.coroutines.delay(DebugConfig.SNACKBAR_DURATION_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            else -> {}
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "${getGreeting()}, ${gameState.user?.name ?: "Jardinero"}",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                actions = {
+
+                    IconButton(onClick = { gameViewModel.toggleMusic() }) {
+                        Icon(
+                            imageVector = if (isMusicOn) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                            contentDescription = if (isMusicOn) "Silenciar" else "Activar sonido",tint = Color.White
+                        )
+                    }
+
+                    IconButton(onClick = onNavigateToShop) {
+                        Icon(Icons.Default.ShoppingCart, "Tienda",tint = Color.White)
+                    }
+
+                    if (gameState.currentPlant != null) {
+                        IconButton(onClick = onNavigateToPlantInfo) {
+                            Icon(Icons.Default.Info, "Info de planta")
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent
+                )
+            )
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(getBackgroundForTime())
+                .padding(paddingValues)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Stats display
+                StatsDisplay(
+                    points = gameState.points
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Área de las macetas con deslizamiento horizontal
+                PlantPotsCarousel(
+                    gameState = gameState,
+                    gameViewModel = gameViewModel,
+                    onPlantClick = { potId ->
+                        selectedPotId = potId
+                        showPlantDialog = true
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Inventario rápido
+                QuickInventory(
+                    fertilizers = gameState.fertilizers,
+                    pesticides = gameState.pesticides
+                )
+
+                // Botón de prueba de notificaciones (solo en modo DEBUG)
+                if (DebugConfig.DEBUG_MODE) {
+                    val context = LocalContext.current
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            // Llamar directamente a la función estática del Worker
+                            com.example.miprimerhuerto.notifications.PlantNotificationWorker.sendTestNotification(context)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF9800)
+                        )
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("🧪 Prueba de Notificación (DEBUG)")
+                    }
+
+                    // Botones adicionales de debug
+                    Button(
+                        onClick = {
+                            gameViewModel.triggerDebugPest()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF9800).copy(alpha = 0.8f)
+                        )
+                    ) {
+                        Icon(Icons.Default.BugReport, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("🐛 Simular Plaga")
+                    }
+
+                    Button(
+                        onClick = {
+                            gameViewModel.triggerDebugLowWater()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2196F3).copy(alpha = 0.8f)
+                        )
+                    ) {
+                        Icon(Icons.Default.WaterDrop, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("💧 Simular Agua Baja")
+                    }
+
+                    Button(
+                        onClick = {
+                            gameViewModel.triggerDebugStageChange()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4CAF50).copy(alpha = 0.8f)
+                        )
+                    ) {
+                        Icon(Icons.Default.TrendingUp, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("🌱 Simular Cambio de Etapa")
+                    }
+
+                    Button(
+                        onClick = {
+                            gameViewModel.addDebugStars(50)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFD700).copy(alpha = 0.8f)
+                        )
+                    ) {
+                        Icon(Icons.Default.Star, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("⭐ +50 Estrellas (DEBUG)")
+                    }
+
+                    Button(
+                        onClick = {
+                            gameViewModel.triggerDebugWaterAll()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF00BCD4).copy(alpha = 0.8f)
+                        )
+                    ) {
+                        Icon(Icons.Default.WaterDrop, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("💧 Regar Todas las Plantas (DEBUG)")
+                    }
+
+                    Button(
+                        onClick = {
+                            gameViewModel.triggerDebugLowerHealth()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE91E63).copy(alpha = 0.8f)
+                        )
+                    ) {
+                        Icon(Icons.Default.Favorite, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("❤️ Bajar Salud -10% (DEBUG)")
+                    }
+                }
+            }
+        }
+    }
+
+    // Diálogo para plantar semilla
+    if (showPlantDialog) {
+        PlantSeedDialog(
+            gameState = gameState,
+            potId = selectedPotId,
+            onDismiss = { showPlantDialog = false },
+            onPlant = { plantType ->
+                gameViewModel.plantSeedInPot(plantType, selectedPotId)
+                showPlantDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun PlantArea(
+    gameState: GameState,
+    onPlantClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.7f)
+        ),
+        elevation = CardDefaults.cardElevation(8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Maceta con planta
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(250.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // Maceta (fondo)
+                PlantPot(
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    hasPlant = gameState.currentPlant != null
+                )
+
+                // Planta superpuesta
+                if (gameState.currentPlant != null) {
+                    PlantVisualization(
+                        plantType = gameState.currentPlant.type,
+                        stage = gameState.currentPlant.stage,
+                        health = gameState.currentPlant.health,
+                        hasPest = gameState.currentPlant.hasPest,
+                        modifier = Modifier
+                            .size(200.dp)
+                            .align(Alignment.BottomCenter)
+                            .offset(y = (-20).dp) // Ajustar para que la base esté en la maceta
+                    )
+                }
+
+                // Contador de tiempo para siguiente etapa
+                if (gameState.currentPlant != null && !gameState.currentPlant.isDead()) {
+                    TimeToNextStage(
+                        plant = gameState.currentPlant,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            //.scale(0.7f) // 🔹 Reduce el tamaño a un 70%
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Información de la planta o botón para plantar
+            if (gameState.currentPlant != null) {
+                PlantInfo(plant = gameState.currentPlant)
+            } else {
+                Button(
+                    onClick = onPlantClick,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = GreenPrimary
+                    )
+                ) {
+                    Icon(Icons.Default.Add, "Plantar")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Plantar Semilla")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PlantInfo(plant: Plant) {
+    val plantInfo = PlantTypeData.getInfo(plant.type)
+    val stageInfo = PlantStageData.getStageInfo(plant.stage, plantInfo.isHarvestable)
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = plantInfo.name,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = GreenDark
+            )
+
+            // Indicador especial para plantas ornamentales
+            if (!plantInfo.isHarvestable) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFE91E63).copy(alpha = 0.2f)
+                ) {
+                    Text(
+                        text = "✨ +3x puntos",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE91E63),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = stageInfo?.name ?: "Desconocido",
+            fontSize = 12.sp,
+            color = Color.Gray
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Barras de estado
+        HealthBar(
+            health = plant.health,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        WaterBar(
+            waterLevel = plant.waterLevel,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+        )
+
+        if (plant.hasPest) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "⚠️ ¡Tiene plagas!",
+                color = Color.Red,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+fun WaterButton(
+    enabled: Boolean,
+    onWater: () -> Unit,
+    onWateringStart: () -> Unit,
+    onWateringStop: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "waterButtonScale"
+    )
+
+    Column(
+        modifier = modifier
+            .scale(scale)
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        val released = tryAwaitRelease()
+                        isPressed = false
+                        if (released) {
+                            onWateringStop()
+                        }
+                    },
+                    onLongPress = {
+                        // Mantener presionado: iniciar riego continuo
+                        onWateringStart()
+                    },
+                    onTap = {
+                        // Clic simple: regar 10%
+                        onWater()
+                    }
+                )
+            },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(60.dp)
+                .clip(CircleShape)
+                .background(
+                    if (enabled) WaterBlue else Color.Gray.copy(alpha = 0.5f)
+                )
+                .border(
+                    width = 2.dp,
+                    color = if (enabled) WaterBlue.copy(alpha = 0.3f) else Color.Gray,
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Water,
+                contentDescription = "Regar",
+                tint = if (enabled) Color.White else Color.Gray,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = "Regar",
+            fontSize = 12.sp,
+            color = if (enabled) GreenDark else Color.Gray,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun ActionControls(
+    gameState: GameState,
+    gameViewModel: GameViewModel,
+    selectedPotId: Int,
+    onFertilize: () -> Unit,
+    onRemovePest: () -> Unit,
+    onHarvest: () -> Unit,
+    onCutOrnamental: () -> Unit,
+    onRemovePlant: () -> Unit
+) {
+    val pot = gameState.getPotById(selectedPotId)
+    val plant = pot?.plant
+    val hasPlant = plant != null && !plant.isDead()
+
+    // Estados para el botón de regar con presionar y mantener
+    var isWatering by remember { mutableStateOf(false) }
+
+    // LaunchedEffect para riego continuo cuando se mantiene presionado
+    LaunchedEffect(isWatering) {
+        while (isWatering) {
+            gameViewModel.waterPlant(amount = 2f, potId = selectedPotId) // 2% cada 100ms cuando se mantiene presionado
+            kotlinx.coroutines.delay(100)
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.9f)
+        ),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            Text(
+                text = "Acciones",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = GreenPrimary
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                // Botón de regar personalizado con clic y mantener presionado
+                WaterButton(
+                    enabled = hasPlant,
+                    onWater = {
+                        // No reproducimos el sonido aquí, esperamos la confirmación del ViewModel
+                        gameViewModel.waterPlant(amount = 10f, potId = selectedPotId) // 10% por clic
+                    },
+                    onWateringStart = { isWatering = true },
+                    onWateringStop = { isWatering = false }
+                )
+
+                ActionButton(
+                    icon = Icons.Default.Grass,
+                    label = "Fertilizar",
+                    onClick = onFertilize,
+                    enabled = hasPlant && gameState.fertilizers > 0,
+                    backgroundColor = BrownPrimary
+                )
+
+                ActionButton(
+                    icon = Icons.Default.BugReport,
+                    label = "Anti-Plaga",
+                    onClick = onRemovePest,
+                    enabled = hasPlant && plant?.hasPest == true && gameState.pesticides > 0,
+                    backgroundColor = Color(0xFFFF5722)
+                )
+
+                if (plant?.canHarvest() == true) {
+                    ActionButton(
+                        icon = Icons.Default.EnergySavingsLeaf,
+                        label = "Cosechar",
+                        onClick = onHarvest,
+                        enabled = true,
+                        backgroundColor = SunYellow
+                    )
+                } else if (plant != null && !plant.isDead()) {
+                    val plantInfo = PlantTypeData.getInfo(plant.type)
+                    if (!plantInfo.isHarvestable && plant.stage == PlantStage.FLORECIMIENTO) {
+                        // Botón "Cortar" para plantas ornamentales en etapa máxima
+                        ActionButton(
+                            icon = Icons.Default.ContentCut,
+                            label = "Cortar",
+                            onClick = onCutOrnamental,
+                            enabled = true,
+                            backgroundColor = Color(0xFFE91E63) // Rosa para plantas ornamentales
+                        )
+                    }
+                } else if (plant?.isDead() == true) {
+                    ActionButton(
+                        icon = Icons.Default.Delete,
+                        label = "Limpiar",
+                        onClick = onRemovePlant,
+                        enabled = true,
+                        backgroundColor = Color.Gray
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun QuickInventory(
+    fertilizers: Int,
+    pesticides: Int
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.8f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            InventoryItem(
+                icon = Icons.Default.Grass,
+                label = "Fertilizantes",
+                count = fertilizers
+            )
+
+            InventoryItem(
+                icon = Icons.Default.BugReport,
+                label = "Pesticidas",
+                count = pesticides
+            )
+        }
+    }
+}
+
+@Composable
+fun InventoryItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    count: Int
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = GreenPrimary,
+                modifier = Modifier.size(32.dp)
+            )
+
+            if (count > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(18.dp)
+                        .background(Color.Red, shape = androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = count.toString(),
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color.Gray
+        )
+    }
+}
+
+@Composable
+fun PlantSeedDialog(
+    gameState: GameState,
+    potId: Int,
+    onDismiss: () -> Unit,
+    onPlant: (PlantType) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Elige una semilla para Maceta ${potId + 1}",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                gameState.ownedSeeds.forEach { (plantType, count) ->
+                    if (count > 0) {
+                        val plantInfo = PlantTypeData.getInfo(plantType)
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            onClick = { onPlant(plantType) }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = plantInfo.name,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = plantInfo.description,
+                                        fontSize = 12.sp,
+                                        color = Color.Gray
+                                    )
+                                }
+
+                                Text(
+                                    text = "x$count",
+                                    fontWeight = FontWeight.Bold,
+                                    color = GreenPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
+@Composable
+fun TimeToNextStage(
+    plant: Plant,
+    modifier: Modifier = Modifier
+) {
+    val plantInfo = PlantTypeData.getInfo(plant.type)
+    val stages = PlantStageData.getStagesForPlant(plantInfo.isHarvestable)
+    val currentStageInfo = stages.find { it.stage == plant.stage }
+
+    // Si es la última etapa o no encontramos info, no mostramos nada
+    if (currentStageInfo == null || plant.stage == PlantStage.COSECHABLE ||
+        plant.stage == PlantStage.FLORECIMIENTO) {
+        return
+    }
+
+    // Calcular tiempo restante para siguiente etapa
+    val stageDuration = (plantInfo.growthDuration * currentStageInfo.durationPercentage).toLong()
+    val timeInCurrentStage = plant.getTimeInCurrentStage()
+    val timeRemaining = (stageDuration - timeInCurrentStage).coerceAtLeast(0)
+
+    // Convertir a horas y minutos
+    val hoursRemaining = java.util.concurrent.TimeUnit.MILLISECONDS.toHours(timeRemaining)
+    val minutesRemaining = java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(timeRemaining) % 60
+
+    // Actualizar cada segundo
+    var currentTime by remember { mutableStateOf(timeRemaining) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(1000)
+            currentTime = (stageDuration - plant.getTimeInCurrentStage()).coerceAtLeast(0)
+        }
+    }
+
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = GreenPrimary.copy(alpha = 0.9f)
+        ),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Row(
+            // Reducimos el padding para hacerlo más compacto
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            // Reducimos el espaciado entre el icono y la columna de texto
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Schedule,
+                contentDescription = "Tiempo para siguiente etapa",
+                tint = Color.White,
+                modifier = Modifier.size(14.dp)
+            )
+
+            // Usamos una Columna para apilar el nuevo texto y el tiempo
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally, // Centrar el texto en la columna
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Nuevo texto "Tiempo sig. etapa"
+                Text(
+                    text = "sig. etapa",
+                    fontSize = 8.sp, // Muy pequeña para que quepa y sea solo una etiqueta
+                    color = Color.White.copy(alpha = 0.8f), // Un poco transparente
+                    fontWeight = FontWeight.Normal // No tan negrita
+                )
+                // El tiempo restante
+                Text(
+                    text = if (hoursRemaining > 0) {
+                        "${hoursRemaining}h ${minutesRemaining}m"
+                    } else {
+                        "${minutesRemaining}m"
+                    },
+                    fontSize = 11.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}

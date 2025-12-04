@@ -1,0 +1,631 @@
+package com.example.miprimerhuerto.ui.screens
+
+// --- IMPORTS AÑADIDOS PARA EL AUDIO SFX ---
+import android.media.MediaPlayer
+import androidx.compose.ui.platform.LocalContext
+import com.example.miprimerhuerto.R
+// ------------------------------------------
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.miprimerhuerto.data.model.GameState
+import com.example.miprimerhuerto.data.model.PlantType
+import com.example.miprimerhuerto.data.model.PlantTypeData
+import com.example.miprimerhuerto.ui.components.StatsDisplay
+import com.example.miprimerhuerto.ui.theme.*
+import com.example.miprimerhuerto.ui.viewmodel.GameViewModel
+import com.example.miprimerhuerto.ui.viewmodel.UiEvent
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ShopScreen(
+    onNavigateBack: () -> Unit,
+    gameViewModel: GameViewModel,
+    modifier: Modifier = Modifier
+) {
+    val gameState by gameViewModel.gameState.collectAsState()
+    val uiEvent by gameViewModel.uiEvent.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // --- AÑADIDO: Leemos el estado de la música/sonido desde el ViewModel ---
+    val isSoundOn by gameViewModel.isMusicOn.collectAsState() // Reutilizamos el mismo interruptor
+
+    // --- AÑADIDO: Creamos el MediaPlayer para el sonido de compra ---
+    val context = LocalContext.current
+    val buySoundPlayer = remember {
+        // Asegúrate de que tu archivo se llame 'buy_sound.mp3' en 'res/raw/'
+        MediaPlayer.create(context, R.raw.buy_sound)
+    }
+
+    // --- AÑADIDO: Nos aseguramos de liberar el MediaPlayer cuando la pantalla se destruye ---
+    DisposableEffect(Unit) {
+        onDispose {
+            buySoundPlayer.release()
+        }
+    }
+
+    // --- AÑADIDO: Función helper para reproducir el sonido ---
+    val playBuySound = {
+        if (isSoundOn) {
+            // Si ya está sonando, lo rebobinamos y lo volvemos a sonar (para clics rápidos)
+            if(buySoundPlayer.isPlaying) {
+                buySoundPlayer.seekTo(0)
+            }
+            buySoundPlayer.start()
+        }
+    }
+
+    LaunchedEffect(uiEvent) {
+        when (val event = uiEvent) {
+            is UiEvent.SeedPurchased -> {
+                val plantInfo = PlantTypeData.getInfo(event.plantType)
+                snackbarHostState.showSnackbar("¡${plantInfo.name} comprado!")
+            }
+            is UiEvent.FertilizerPurchased -> {
+                snackbarHostState.showSnackbar("¡Fertilizante comprado!")
+            }
+            is UiEvent.PesticidePurchased -> {
+                snackbarHostState.showSnackbar("¡Pesticida comprado!")
+            }
+            is UiEvent.PlantPotPurchased -> {
+                snackbarHostState.showSnackbar("¡Nueva maceta desbloqueada!")
+            }
+            else -> {}
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Tienda", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.ArrowBack, "Volver")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent
+                )
+            )
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(SkyBlue, GreenLight.copy(alpha = 0.3f))
+                    )
+                )
+                .padding(paddingValues)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                StatsDisplay(
+                    points = gameState.points
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Sección de semillas
+                    item {
+                        Text(
+                            text = "Semillas",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+
+                    items(PlantTypeData.getAllPlants()) { plantInfo ->
+                        SeedShopItem(
+                            plantInfo = plantInfo,
+                            owned = gameState.ownedSeeds[plantInfo.type] ?: 0,
+                            canAfford = gameState.points >= plantInfo.basePrice,
+                            onBuy = {
+                                // --- MODIFICADO: Añadimos el sonido ---
+                                playBuySound()
+                                gameViewModel.buySeed(plantInfo.type)
+                            }
+                        )
+                    }
+
+                    // Sección de herramientas
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Herramientas",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+
+                    item {
+                        ToolShopItem(
+                            icon = Icons.Default.Grass,
+                            name = "Fertilizante",
+                            description = "Mejora la salud de tu planta rápidamente",
+                            price = GameState.FERTILIZER_COST,
+                            owned = gameState.fertilizers,
+                            canAfford = gameState.points >= GameState.FERTILIZER_COST,
+                            onBuy = {
+                                // --- MODIFICADO: Añadimos el sonido ---
+                                playBuySound()
+                                gameViewModel.buyFertilizer()
+                            }
+                        )
+                    }
+
+                    item {
+                        ToolShopItem(
+                            icon = Icons.Default.BugReport,
+                            name = "Pesticida",
+                            description = "Elimina las plagas de tu planta",
+                            price = GameState.PESTICIDE_COST,
+                            owned = gameState.pesticides,
+                            canAfford = gameState.points >= GameState.PESTICIDE_COST,
+                            onBuy = {
+                                // --- MODIFICADO: Añadimos el sonido ---
+                                playBuySound()
+                                gameViewModel.buyPesticide()
+                            }
+                        )
+                    }
+
+                    // Sección de macetas
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Macetas",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+
+                    item {
+                        PlantPotShopItem(
+                            gameState = gameState,
+                            onBuy = {
+                                // --- MODIFICADO: Añadimos el sonido ---
+                                playBuySound()
+                                gameViewModel.buyPlantPot()
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+fun SeedShopItem(
+    plantInfo: com.example.miprimerhuerto.data.model.PlantTypeInfo,
+    owned: Int,
+    canAfford: Boolean,
+    onBuy: () -> Unit // No cambiamos la firma, la lógica se añade arriba
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = plantInfo.name,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GreenDark
+                    )
+
+                    if (owned > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = GreenLight.copy(alpha = 0.3f)
+                        ) {
+                            Text(
+                                text = "x$owned",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = GreenPrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = plantInfo.description,
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = "Tiempo",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "${plantInfo.growthDuration / (1000 * 60 * 60)} horas",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Puntos",
+                        tint = SunYellow,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "+${plantInfo.harvestPoints}",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (plantInfo.basePrice == 0) {
+                    Button(
+                        onClick = onBuy, // onBuy ya contiene el sonido y la lógica del ViewModel
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GreenPrimary
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Obtener",
+                            modifier = Modifier.size(ButtonDefaults.IconSize)
+                        )
+                        Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                        Text("Obtener")
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Puntos",
+                            tint = SunYellow,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = plantInfo.basePrice.toString(),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (canAfford) GreenPrimary else Color.Red
+                        )
+                    }
+
+                    Button(
+                        onClick = onBuy, // onBuy ya contiene el sonido y la lógica del ViewModel
+                        enabled = canAfford,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GreenPrimary
+                        )
+                    ) {
+                        Text("Comprar")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ToolShopItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    name: String,
+    description: String,
+    price: Int,
+    owned: Int,
+    canAfford: Boolean,
+    onBuy: () -> Unit // No cambiamos la firma, la lógica se añade arriba
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = GreenLight.copy(alpha = 0.2f),
+                    modifier = Modifier.size(50.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = name,
+                            tint = GreenPrimary,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                }
+
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = name,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GreenDark
+                        )
+
+                        if (owned > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = GreenLight.copy(alpha = 0.3f)
+                            ) {
+                                Text(
+                                    text = "x$owned",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = GreenPrimary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = description,
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Puntos",
+                        tint = SunYellow,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = price.toString(),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (canAfford) GreenPrimary else Color.Red
+                    )
+                }
+
+                Button(
+                    onClick = onBuy, // onBuy ya contiene el sonido y la lógica del ViewModel
+                    enabled = canAfford,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = GreenPrimary
+                    )
+                ) {
+                    Text("Comprar")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PlantPotShopItem(
+    gameState: GameState,
+    onBuy: () -> Unit
+) {
+    val canBuy = gameState.canBuyPlantPot()
+    val maxReached = gameState.plantPots.size >= com.example.miprimerhuerto.data.model.PlantPot.MAX_POTS
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            // Estructura de 3 hijos principales
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
+            // HIJO 1: El Icono (Sin cambios)
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = GreenLight.copy(alpha = 0.2f),
+                modifier = Modifier.size(50.dp)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocalFlorist,
+                        contentDescription = "Maceta",
+                        tint = GreenPrimary,
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
+            }
+
+            // HIJO 2: La Columna de Texto (con el peso)
+            Column(
+                modifier = Modifier.weight(1f), // <-- El peso hace que se expanda
+                // Usamos spacedBy para dar espacio vertical entre los 3 elementos
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+
+                // 1. El Título (ahora solo)
+                Text(
+                    text = "Nueva Maceta",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GreenDark
+                )
+
+                // 2. El Contador (ahora debajo del título)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = GreenLight.copy(alpha = 0.3f)
+                    // Ya no se "apachurra" porque está en su propia línea
+                ) {
+                    Text(
+                        text = "${gameState.plantPots.size}/${com.example.miprimerhuerto.data.model.PlantPot.MAX_POTS}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GreenPrimary,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+
+                // 3. La Descripción (queda al final)
+                Text(
+                    text = if (maxReached) {
+                        "¡Has alcanzado el máximo de macetas!"
+                    } else {
+                        "Desbloquea un nuevo espacio para plantar"
+                    },
+                    fontSize = 14.sp,
+                    color = if (maxReached) Color.Red else Color.Gray
+                )
+            }
+
+            // HIJO 3: La Columna del Botón (Sin cambios)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (!maxReached) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Puntos",
+                            tint = SunYellow,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = com.example.miprimerhuerto.data.model.PlantPot.POT_COST.toString(),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (canBuy) GreenPrimary else Color.Red
+                        )
+                    }
+
+                    Button(
+                        onClick = onBuy,
+                        enabled = canBuy,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GreenPrimary
+                        )
+                    ) {
+                        Text("Comprar")
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.Gray.copy(alpha = 0.2f)
+                    ) {
+                        Text(
+                            text = "Máximo alcanzado",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
